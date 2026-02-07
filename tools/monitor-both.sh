@@ -1,0 +1,15 @@
+#!/bin/bash
+
+echo "================================================"
+echo "  Monitoring Both Nodes"
+echo "================================================"
+echo ""
+echo "This requires two terminal windows."
+echo ""
+echo "Terminal 1: Run this command:"
+echo "  cd node-a-gateway && idf.py -p /dev/ttyUSB0 monitor"
+echo ""
+echo "Terminal 2: Run this command:"
+echo "  cd node-b-sentry && idf.py -p /dev/ttyUSB1 monitor"
+echo ""
+echo "Or use a terminal multiplexer like tmux or screen"

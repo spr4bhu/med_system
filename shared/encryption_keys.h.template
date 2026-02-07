@@ -1,0 +1,20 @@
+/* COPY TO encryption_keys.h AND CHANGE KEYS */
+/* DO NOT COMMIT encryption_keys.h */
+
+#ifndef ENCRYPTION_KEYS_H
+#define ENCRYPTION_KEYS_H
+
+#include <stdint.h>
+
+/* AES-128 key (16 bytes) - CHANGE THIS TO YOUR OWN KEY */
+static const uint8_t AES_KEY[16] = {
+    0x2bU, 0x7eU, 0x15U, 0x16U, 0x28U, 0xaeU, 0xd2U, 0xa6U,
+    0xabU, 0xf7U, 0x97U, 0x46U, 0x09U, 0xcfU, 0x4fU, 0x3cU
+};
+
+/* Node MAC addresses (get from ESP32 using esp_efuse_mac_get_default()) */
+/* To get MAC address: Flash ESP32 and check serial monitor output */
+static const uint8_t NODE_A_MAC[6] = {0xAAU, 0xBBU, 0xCCU, 0xDDU, 0xEEU, 0x01U};
+static const uint8_t NODE_B_MAC[6] = {0xAAU, 0xBBU, 0xCCU, 0xDDU, 0xEEU, 0x02U};
+
+#endif /* ENCRYPTION_KEYS_H */

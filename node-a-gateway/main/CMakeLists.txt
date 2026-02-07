@@ -1,0 +1,29 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "sensors/mpu6050.c"
+        "sensors/max30102.c"
+        "sensors/dht22.c"
+        "sensors/emergency_button.c"
+        "tasks/sensor_task.c"
+        "tasks/fall_detection_task.c"
+        "tasks/vitals_monitor_task.c"
+        "tasks/gateway_rx_task.c"
+        "tasks/cloud_tx_task.c"
+        "security/aes_crypto.c"
+        "utils/crc16.c"
+    INCLUDE_DIRS
+        "."
+        "sensors"
+        "tasks"
+        "security"
+        "utils"
+    REQUIRES
+        esp_wifi
+        esp_http_client
+        nvs_flash
+        mbedtls
+        driver
+        esp_timer
+        shared_protocol
+)

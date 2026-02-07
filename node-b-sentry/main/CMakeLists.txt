@@ -1,0 +1,24 @@
+idf_component_register(
+    SRCS
+        "main.c"
+        "modules/rfid_rc522.c"
+        "modules/ir_sensor.c"
+        "modules/buzzer.c"
+        "tasks/access_control_task.c"
+        "tasks/intrusion_detect_task.c"
+        "tasks/espnow_tx_task.c"
+        "security/aes_crypto.c"
+        "utils/crc16.c"
+    INCLUDE_DIRS
+        "."
+        "modules"
+        "tasks"
+        "security"
+        "utils"
+    REQUIRES
+        esp_wifi
+        nvs_flash
+        driver
+        mbedtls
+        shared_protocol
+)

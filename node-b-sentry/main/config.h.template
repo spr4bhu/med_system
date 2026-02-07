@@ -1,0 +1,47 @@
+/* COPY TO config.h AND FILL VALUES */
+/* DO NOT COMMIT config.h */
+
+#ifndef CONFIG_H
+#define CONFIG_H
+
+#include "driver/spi_master.h"
+
+/* GPIO Pin Configuration - Node B */
+#define RFID_SS_GPIO      5
+#define RFID_RST_GPIO     27
+#define IR_SENSOR_GPIO    4
+#define BUZZER_GPIO       25
+#define STATUS_LED_GPIO   2
+
+/* SPI Configuration for RC522 */
+#define SPI_MOSI_GPIO     23
+#define SPI_MISO_GPIO     19
+#define SPI_SCK_GPIO      18
+#define SPI_HOST_ID       SPI2_HOST
+#define SPI_CLK_SPEED_HZ  1000000  /* 1 MHz for RC522 */
+
+/* Authorized RFID UIDs (whitelist) */
+static const uint32_t AUTHORIZED_UIDS[] = {
+    0x12345678U,
+    0x87654321U
+};
+#define AUTHORIZED_UID_COUNT (sizeof(AUTHORIZED_UIDS) / sizeof(AUTHORIZED_UIDS[0]))
+
+/* Timing Constants (milliseconds) */
+#define IR_COOLDOWN_MS              5000U
+#define RFID_SCAN_INTERVAL_MS       500U
+#define BUZZER_ALARM_DURATION_MS    3000U
+#define BUZZER_UNAUTHORIZED_MS      1000U
+#define ESPNOW_TX_INTERVAL_MS       1000U
+
+/* Task Priorities */
+#define INTRUSION_TASK_PRIORITY     6
+#define ACCESS_CTRL_TASK_PRIORITY   5
+#define ESPNOW_TX_TASK_PRIORITY     4
+
+/* Task Stack Sizes (bytes) */
+#define ACCESS_TASK_STACK_SIZE      4096U
+#define INTRUSION_TASK_STACK_SIZE   4096U
+#define ESPNOW_TX_TASK_STACK_SIZE   4096U
+
+#endif /* CONFIG_H */

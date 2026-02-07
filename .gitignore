@@ -1,0 +1,26 @@
+# ESP-IDF build artifacts
+build/
+sdkconfig
+sdkconfig.old
+*.bin
+*.elf
+*.map
+
+# Secrets
+**/config.h
+**/encryption_keys.h
+cloud-server/.env
+
+# Node.js
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc

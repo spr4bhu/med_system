@@ -1,0 +1,60 @@
+/* COPY TO config.h AND FILL VALUES */
+/* DO NOT COMMIT config.h */
+
+#ifndef CONFIG_H
+#define CONFIG_H
+
+#include "driver/i2c.h"
+
+/* WiFi Credentials */
+#define WIFI_SSID "YOUR_SSID"
+#define WIFI_PASSWORD "YOUR_PASSWORD"
+
+/* Cloud Server Configuration */
+#define CLOUD_SERVER_URL "https://yourserver.com/api/data"
+#define API_KEY "your-api-key"
+
+/* GPIO Pin Configuration - Node A */
+#define I2C_MASTER_SDA_IO    21
+#define I2C_MASTER_SCL_IO    22
+#define I2C_MASTER_NUM       I2C_NUM_0
+#define I2C_MASTER_FREQ_HZ   100000
+
+#define DHT22_GPIO           4
+#define SOS_BUTTON_GPIO      5
+#define STATUS_LED_GPIO      2
+
+/* I2C Device Addresses */
+#define MPU6050_I2C_ADDR     0x68U
+#define MAX30102_I2C_ADDR    0x57U
+
+/* Sensor Thresholds */
+#define FALL_THRESHOLD_G     2.5f
+#define FREEFALL_THRESHOLD_G 0.5f
+#define MAX_HEART_RATE_BPM   200.0f
+#define MIN_HEART_RATE_BPM   40.0f
+#define MAX_TEMP_C           38.5f
+#define MIN_TEMP_C           35.0f
+
+/* Task Intervals (milliseconds) */
+#define SENSOR_READ_INTERVAL_MS    100U
+#define FALL_CHECK_INTERVAL_MS     50U
+#define VITALS_CHECK_INTERVAL_MS   1000U
+#define CLOUD_TX_INTERVAL_MS       2000U
+#define FALL_DEBOUNCE_MS           5000U
+
+/* Task Priorities (higher = more important) */
+#define FALL_DETECT_TASK_PRIORITY  6
+#define SENSOR_TASK_PRIORITY       5
+#define VITALS_TASK_PRIORITY       5
+#define GATEWAY_RX_TASK_PRIORITY   5
+#define CLOUD_TX_TASK_PRIORITY     3
+
+/* Task Stack Sizes (bytes) */
+#define SENSOR_TASK_STACK_SIZE     4096U
+#define FALL_TASK_STACK_SIZE       4096U
+#define VITALS_TASK_STACK_SIZE     4096U
+#define GATEWAY_TASK_STACK_SIZE    4096U
+#define CLOUD_TX_TASK_STACK_SIZE   8192U  /* Larger for TLS */
+
+#endif /* CONFIG_H */
