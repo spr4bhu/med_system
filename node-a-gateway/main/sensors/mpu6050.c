@@ -79,6 +79,7 @@ esp_err_t mpu6050_init(void) {
         /* Success */
     }
 
+    /* ESP-IDF API: last parameter is int intr_alloc_flags; use 0 to match type (MISRA 10.x) */
     ret = i2c_driver_install(I2C_MASTER_NUM, conf.mode, 0U, 0U, 0);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "I2C driver install failed: %d", ret);

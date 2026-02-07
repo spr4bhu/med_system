@@ -134,8 +134,5 @@ void espnow_tx_task(void* pvParameters) {
         vTaskDelay(pdMS_TO_TICKS(ESPNOW_TX_INTERVAL_MS));
     }
 
-    /* Cleanup (never reached) */
-    (void)esp_now_unregister_send_cb();
-    (void)esp_now_deinit();
-    vTaskDelete(NULL);
+    /* Never reached; task runs until shutdown (MISRA Rule 2.1 - no unreachable code) */
 }

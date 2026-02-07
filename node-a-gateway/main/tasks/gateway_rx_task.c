@@ -22,7 +22,11 @@ static void espnow_recv_cb(const esp_now_recv_info_t* recv_info, const uint8_t* 
         /* Valid pointers */
     }
 
-    if (len != (int)sizeof(espnow_packet_t)) {
+    /* Type-safe size check (MISRA 10.x): reject negative len, then compare as size_t */
+    if (len < 0) {
+        ESP_LOGW(TAG, "Invalid packet length: negative");
+        return;
+    } else if ((size_t)len != sizeof(espnow_packet_t)) {
         ESP_LOGW(TAG, "Invalid packet size: %d (expected %zu)", len, sizeof(espnow_packet_t));
         return;
     } else {
@@ -108,8 +112,5 @@ void gateway_rx_task(void* pvParameters) {
         ESP_LOGD(TAG, "Gateway RX task running");
     }
 
-    /* Cleanup (never reached) */
-    (void)esp_now_unregister_recv_cb();
-    (void)esp_now_deinit();
-    vTaskDelete(NULL);
+    /* Never reached; task runs until shutdown (MISRA Rule 2.1 - no unreachable code) */
 }
