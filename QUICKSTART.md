@@ -9,7 +9,7 @@
 2. **Two ESP32 DevKit boards** with USB cables
 
 3. **Hardware components**:
-   - Node A: MPU6050, MAX30102, DHT22, button
+   - Node A: MPU6050, HW827, DHT11, button
    - Node B: RC522 RFID, IR sensor, buzzer
 
 ## Step-by-Step Setup (15 minutes)
@@ -136,7 +136,8 @@ idf.py -p /dev/ttyUSB1 flash monitor
 
 **Error**: I2C sensor not detected
 - **Fix**: Check wiring (SDA to GPIO 21, SCL to GPIO 22)
-- **Fix**: Verify sensor address (0x68 for MPU6050, 0x57 for MAX30102)
+- **Fix**: Verify sensor address (0x68 for MPU6050)
+- **Fix**: HW827 uses GPIO 14 for pulse detection, not I2C
 
 ## Minimal Test (No Hardware)
 

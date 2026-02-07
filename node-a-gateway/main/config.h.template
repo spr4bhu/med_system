@@ -20,13 +20,14 @@
 #define I2C_MASTER_NUM       I2C_NUM_0
 #define I2C_MASTER_FREQ_HZ   100000
 
-#define DHT22_GPIO           4
+#define DHT22_GPIO           4   /* DHT11 temperature sensor (1-wire) */
+#define HW827_PULSE_GPIO     14  /* HW827 heart rate sensor (pulse input) */
 #define SOS_BUTTON_GPIO      5
 #define STATUS_LED_GPIO      2
 
 /* I2C Device Addresses */
 #define MPU6050_I2C_ADDR     0x68U
-#define MAX30102_I2C_ADDR    0x57U
+/* Note: HW827 uses GPIO pulse detection, not I2C */
 
 /* Sensor Thresholds */
 #define FALL_THRESHOLD_G     2.5f

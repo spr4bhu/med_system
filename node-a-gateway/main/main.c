@@ -13,7 +13,7 @@
 
 #include "config.h"
 #include "sensors/mpu6050.h"
-#include "sensors/max30102.h"
+#include "sensors/hw827.h"
 #include "sensors/dht22.h"
 #include "sensors/emergency_button.h"
 #include "tasks/sensor_task.h"
@@ -149,20 +149,20 @@ void app_main(void) {
         ESP_LOGI(TAG, "MPU6050 initialized");
     }
 
-    ret = max30102_init();
+    ret = hw827_init();
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "MAX30102 init failed: %d", ret);
+        ESP_LOGE(TAG, "HW827 init failed: %d", ret);
         /* Continue anyway */
     } else {
-        ESP_LOGI(TAG, "MAX30102 initialized");
+        ESP_LOGI(TAG, "HW827 heart rate sensor initialized");
     }
 
     ret = dht22_init();
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "DHT22 init failed: %d", ret);
+        ESP_LOGE(TAG, "DHT11 init failed: %d", ret);
         /* Continue anyway */
     } else {
-        ESP_LOGI(TAG, "DHT22 initialized");
+        ESP_LOGI(TAG, "DHT11 temperature sensor initialized");
     }
 
     ret = emergency_button_init();

@@ -49,18 +49,18 @@
 - [ ] Z-axis: Shows ~1g when flat (gravity)
 - [ ] Data updates at 100Hz
 
-### MAX30102 Heart Rate Sensor
-- [ ] I2C initialization successful (address 0x57 detected)
-- [ ] Detects finger placement
+### HW827 Heart Rate Sensor
+- [ ] GPIO initialization successful
+- [ ] Pulse detection ISR working
 - [ ] BPM reading between 40-200
 - [ ] Stable reading after 10 seconds
-- [ ] SpO2 calculation (optional)
+- [ ] No false pulse detections
 
-### DHT22 Temperature Sensor
+### DHT11 Temperature Sensor
 - [ ] Reads ambient temperature (±2°C accuracy)
 - [ ] Temperature in range 15-35°C (room temp)
-- [ ] Humidity reading valid (optional)
 - [ ] No CRC errors
+- [ ] 1-wire protocol timing correct
 
 ### Emergency Button
 - [ ] Button press detected
@@ -315,8 +315,8 @@
 
 ### Node A Failures
 - [ ] MPU6050 disconnected: System continues (no crash)
-- [ ] MAX30102 disconnected: System continues
-- [ ] DHT22 disconnected: System continues
+- [ ] HW827 disconnected: System continues
+- [ ] DHT11 disconnected: System continues
 - [ ] WiFi disconnected: Automatic reconnection
 - [ ] Server unreachable: Retry mechanism works
 

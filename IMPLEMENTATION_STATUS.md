@@ -25,8 +25,8 @@
 
 **Sensors (4 drivers):**
 - ✅ `sensors/mpu6050.c/h` - Accelerometer via I2C (fall detection)
-- ✅ `sensors/max30102.c/h` - Heart rate sensor via I2C
-- ✅ `sensors/dht22.c/h` - Temperature sensor (1-wire protocol)
+- ✅ `sensors/hw827.c/h` - Heart rate sensor (GPIO pulse detection)
+- ✅ `sensors/dht22.c/h` - Temperature sensor DHT11 (1-wire protocol)
 - ✅ `sensors/emergency_button.c/h` - GPIO interrupt with debouncing
 
 **FreeRTOS Tasks (5 tasks):**
@@ -231,8 +231,8 @@ idf.py build 2>&1 | grep "warning:"  # Should be empty
 ## Key Features Implemented
 
 ### Node A (Gateway)
-- ✅ Continuous heart rate monitoring (MAX30102)
-- ✅ Body temperature tracking (DHT22)
+- ✅ Continuous heart rate monitoring (HW827)
+- ✅ Body temperature tracking (DHT11)
 - ✅ 3-state fall detection algorithm (MPU6050)
 - ✅ Emergency SOS button with ISR
 - ✅ Vitals monitoring with threshold alerts

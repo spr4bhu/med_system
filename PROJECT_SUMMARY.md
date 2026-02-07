@@ -21,8 +21,8 @@ A production-ready, MISRA-C compliant IoT medical monitoring system built with E
 #### Node A (Gateway) - 28 Files
 - **Sensors**:
   - MPU6050 accelerometer (I2C) - Fall detection
-  - MAX30102 heart rate sensor (I2C)
-  - DHT22 temperature sensor (1-wire)
+  - HW827 heart rate sensor (GPIO pulse detection)
+  - DHT11 temperature sensor (1-wire)
   - Emergency SOS button (GPIO interrupt)
 
 - **FreeRTOS Tasks**:
@@ -121,8 +121,8 @@ A production-ready, MISRA-C compliant IoT medical monitoring system built with E
       │    (Gateway)         │
       │                      │
       │  - MPU6050 (Accel)   │
-      │  - MAX30102 (HR)     │
-      │  - DHT22 (Temp)      │
+      │  - HW827 (HR)        │
+      │  - DHT11 (Temp)      │
       │  - SOS Button        │
       │  - Fall Detection    │
       │  - WiFi/HTTPS        │
@@ -198,8 +198,8 @@ cd node-b-sentry && idf.py build
 - [ ] Both nodes compile with zero warnings
 - [ ] Node A connects to WiFi
 - [ ] MPU6050 reads accelerometer data
-- [ ] MAX30102 provides heart rate readings
-- [ ] DHT22 reads temperature
+- [ ] HW827 provides heart rate readings
+- [ ] DHT11 reads temperature
 - [ ] Fall detection triggers on drop test
 - [ ] SOS button sends alert
 - [ ] Node B RFID reads cards

@@ -2,7 +2,7 @@ idf_component_register(
     SRCS
         "main.c"
         "sensors/mpu6050.c"
-        "sensors/max30102.c"
+        "sensors/hw827.c"
         "sensors/dht22.c"
         "sensors/emergency_button.c"
         "tasks/sensor_task.c"

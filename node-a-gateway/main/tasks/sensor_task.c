@@ -3,7 +3,7 @@
 #include "utils/data_structures.h"
 #include "utils/logger.h"
 #include "sensors/mpu6050.h"
-#include "sensors/max30102.h"
+#include "sensors/hw827.h"
 #include "sensors/dht22.h"
 #include "message_types.h"
 #include "freertos/queue.h"
@@ -37,9 +37,9 @@ void sensor_task(void* pvParameters) {
             sensor_data.accel_z = 1.0f;  /* Default to 1g on Z */
         }
 
-        /* Read MAX30102 heart rate */
+        /* Read HW827 heart rate */
         float hr = 0.0f;
-        ret = max30102_read_bpm(&hr);
+        ret = hw827_read_bpm(&hr);
 
         if (ret == ESP_OK) {
             sensor_data.heart_rate_bpm = hr;
@@ -48,7 +48,7 @@ void sensor_task(void* pvParameters) {
             sensor_data.heart_rate_bpm = 75.0f;  /* Default resting rate */
         }
 
-        /* Read DHT22 temperature */
+        /* Read DHT11 temperature */
         float temp = 0.0f;
         float humid = 0.0f;
         ret = dht22_read_temp(&temp, &humid);

@@ -18,8 +18,8 @@ A secure IoT medical monitoring system using two ESP32 microcontrollers with ESP
                 │  (Bio-Gateway)        │
                 │                       │
                 │  - MPU6050 (Accel)    │
-                │  - MAX30102 (Heart)   │
-                │  - DHT22 (Temp)       │
+                │  - HW827 (Heart)      │
+                │  - DHT11 (Temp)       │
                 │  - SOS Button         │
                 │  - Fall Detection     │
                 └───────────▲───────────┘
@@ -40,8 +40,8 @@ A secure IoT medical monitoring system using two ESP32 microcontrollers with ESP
 ### Node A (Gateway)
 - ESP32 DevKit (with WiFi)
 - MPU6050 6-axis accelerometer/gyroscope (I2C)
-- MAX30102 heart rate sensor (I2C)
-- DHT22 temperature/humidity sensor (1-wire)
+- HW827 heart rate sensor (GPIO pulse detection)
+- DHT11 temperature sensor (1-wire)
 - Emergency button with pull-up resistor
 - Status LED
 
@@ -141,9 +141,10 @@ Open browser: `http://localhost:3000`
 ### Node A GPIO Pins
 | Component | GPIO | Description |
 |-----------|------|-------------|
-| I2C SDA | 21 | MPU6050 + MAX30102 data |
-| I2C SCL | 22 | MPU6050 + MAX30102 clock |
-| DHT22 | 4 | Temperature sensor |
+| I2C SDA | 21 | MPU6050 data |
+| I2C SCL | 22 | MPU6050 clock |
+| DHT11 | 4 | Temperature sensor (1-wire) |
+| HW827 Pulse | 14 | Heart rate pulse input |
 | SOS Button | 5 | Emergency button (active low) |
 | Status LED | 2 | Built-in LED |
 
