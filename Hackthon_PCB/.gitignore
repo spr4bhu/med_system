@@ -1,0 +1,29 @@
+# KiCAD lock files
+~*.kicad_pcb.lck
+~*.kicad_sch.lck
+
+# KiCAD autosave
+_autosave-*.kicad_sch
+_autosave-*.kicad_pcb
+#auto_saved_files#/
+
+# KiCAD cache
+fp-info-cache
+.DS_Store
+*.bak
+
+# Project settings (regenerated)
+*.kicad_prl
+
+# EESchema backup
+*.sch-bak
+*.kicad_sch-bak
+
+# Build artifacts
+*.net
+*.m
+*.zip
+
+# IDE
+.vscode/
+.idea/
