@@ -10,20 +10,18 @@ idf_component_register(
         "tasks/vitals_monitor_task.c"
         "tasks/gateway_rx_task.c"
         "tasks/cloud_tx_task.c"
-        "security/aes_crypto.c"
-        "utils/crc16.c"
     INCLUDE_DIRS
         "."
         "sensors"
         "tasks"
-        "security"
         "utils"
     REQUIRES
         esp_wifi
         esp_http_client
+        mqtt
         nvs_flash
         mbedtls
         driver
         esp_timer
-        shared_protocol
+        esp_adc
 )

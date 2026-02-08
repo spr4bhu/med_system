@@ -2,11 +2,10 @@
 #define MPU6050_H
 
 #include "esp_err.h"
-#include <stdint.h>
+#include "utils/data_structures.h"
 
-/* MPU6050 Function Prototypes (MISRA Rule 8.4) */
+/* MPU6050 Sensor Function Prototypes (MISRA Rule 8.4) */
 esp_err_t mpu6050_init(void);
-esp_err_t mpu6050_read_accel(float* ax, float* ay, float* az);
-esp_err_t mpu6050_read_gyro(float* gx, float* gy, float* gz);
+esp_err_t mpu6050_read(mpu6050_data_t *data);
 
 #endif /* MPU6050_H */

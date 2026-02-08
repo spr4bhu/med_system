@@ -6,44 +6,34 @@
 
 /* Posture states */
 typedef enum {
-    POSTURE_LYING = 0,
-    POSTURE_SITTING = 1,
-    POSTURE_STANDING = 2,
-    POSTURE_FALL_DETECTED = 3
+    POSTURE_UNKNOWN   = 0,
+    POSTURE_STANDING  = 1,
+    POSTURE_SITTING   = 2,
+    POSTURE_LYING     = 3
 } posture_t;
 
-/* Sensor data (Node A → Cloud) */
-typedef struct __attribute__((packed)) {
-    float heart_rate_bpm;
-    float temperature_c;
-    float accel_x;
-    float accel_y;
-    float accel_z;
-    posture_t posture;
-    uint32_t timestamp_ms;
-} sensor_data_t;
+/* Emergency reasons (bitfield) */
+typedef enum {
+    EMERGENCY_NONE      = 0,
+    EMERGENCY_FALL      = (1 << 0),
+    EMERGENCY_BUTTON    = (1 << 1),
+    EMERGENCY_HIGH_TEMP = (1 << 2),
+    EMERGENCY_HIGH_HR   = (1 << 3)
+} emergency_reason_t;
 
-/* Access event (Node B → Node A → Cloud) */
-typedef struct __attribute__((packed)) {
-    uint32_t rfid_uid;
-    uint8_t access_granted;
-    uint32_t timestamp_ms;
-} access_event_t;
+/* System state */
+typedef enum {
+    SYSTEM_STATE_IDLE      = 0,
+    SYSTEM_STATE_NORMAL    = 1,
+    SYSTEM_STATE_EMERGENCY = 2
+} system_state_t;
 
-/* Intrusion event (Node B → Node A → Cloud) */
-typedef struct __attribute__((packed)) {
-    uint8_t pir_triggered;
-    uint32_t timestamp_ms;
-} intrusion_event_t;
-
-/* ESP-NOW packet wrapper */
-typedef struct __attribute__((packed)) {
-    uint8_t node_id;
-    message_type_t msg_type;
-    uint8_t iv[AES_IV_SIZE];
-    uint8_t encrypted_payload[128];
-    uint16_t crc16;
-    uint32_t timestamp_ms;
-} espnow_packet_t;
+/* Security state (Node B) */
+typedef enum {
+    SECURITY_STATE_IDLE        = 0,
+    SECURITY_STATE_IR_DETECTED = 1,
+    SECURITY_STATE_AUTHORIZED  = 2,
+    SECURITY_STATE_INTRUSION   = 3
+} security_state_t;
 
 #endif /* MESSAGE_TYPES_H */

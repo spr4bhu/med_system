@@ -4,44 +4,114 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#include "driver/spi_master.h"
+/* ========== WiFi Configuration ========== */
+#define WIFI_SSID       "YOUR_SSID"
+#define WIFI_PASS       "YOUR_PASSWORD"
 
-/* GPIO Pin Configuration - Node B */
-#define RFID_SS_GPIO      5
-#define RFID_RST_GPIO     27
-#define IR_SENSOR_GPIO    4
-#define BUZZER_GPIO       25
-#define STATUS_LED_GPIO   2
+/* ========== MQTT Configuration (HiveMQ Cloud) ========== */
+#define MQTT_BROKER_URI "mqtts://YOUR_BROKER.s1.eu.hivemq.cloud:8883"
+#define MQTT_USERNAME   "YOUR_USERNAME"
+#define MQTT_PASSWORD   "YOUR_PASSWORD"
+#define USE_HIVEMQ_CLOUD 1   /* Set to 0 for local MQTT */
 
-/* SPI Configuration for RC522 */
-#define SPI_MOSI_GPIO     23
-#define SPI_MISO_GPIO     19
-#define SPI_SCK_GPIO      18
-#define SPI_HOST_ID       SPI2_HOST
-#define SPI_CLK_SPEED_HZ  1000000  /* 1 MHz for RC522 */
+/* ========== ESP-NOW Configuration ========== */
+#define ESP_NOW_CHANNEL  1
 
-/* Authorized RFID UIDs (whitelist) */
-static const uint32_t AUTHORIZED_UIDS[] = {
-    0x12345678U,
-    0x87654321U
-};
-#define AUTHORIZED_UID_COUNT (sizeof(AUTHORIZED_UIDS) / sizeof(AUTHORIZED_UIDS[0]))
+/* ========== GPIO Pin Configuration - Node B ========== */
+#define IR_SENSOR_PIN    13
+#define BUZZER_PIN       5
 
-/* Timing Constants (milliseconds) */
-#define IR_COOLDOWN_MS              5000U
-#define RFID_SCAN_INTERVAL_MS       500U
-#define BUZZER_ALARM_DURATION_MS    3000U
-#define BUZZER_UNAUTHORIZED_MS      1000U
-#define ESPNOW_TX_INTERVAL_MS       1000U
+/* ========== RC522 RFID Pin Configuration ========== */
+#define RC522_MISO_PIN    25
+#define RC522_MOSI_PIN    23
+#define RC522_SCLK_PIN    19
+#define RC522_CS_PIN      22
+#define RC522_RST_PIN     (-1)  /* Using soft-reset */
 
-/* Task Priorities */
-#define INTRUSION_TASK_PRIORITY     6
-#define ACCESS_CTRL_TASK_PRIORITY   5
-#define ESPNOW_TX_TASK_PRIORITY     4
+/* ========== RC522 Registers ========== */
+#define RC522_REG_COMMAND         0x01U
+#define RC522_REG_COM_IRQ         0x04U
+#define RC522_REG_DIV_IRQ         0x05U
+#define RC522_REG_ERROR           0x06U
+#define RC522_REG_STATUS2         0x08U
+#define RC522_REG_FIFO_DATA       0x09U
+#define RC522_REG_FIFO_LEVEL      0x0AU
+#define RC522_REG_CONTROL         0x0CU
+#define RC522_REG_BIT_FRAMING     0x0DU
+#define RC522_REG_MODE            0x11U
+#define RC522_REG_TX_CONTROL      0x14U
+#define RC522_REG_TX_ASK          0x15U
+#define RC522_REG_CRC_RESULT_L    0x21U
+#define RC522_REG_CRC_RESULT_H    0x22U
+#define RC522_REG_MOD_WIDTH       0x24U
+#define RC522_REG_TIMER_MODE      0x2AU
+#define RC522_REG_TIMER_PRESCALER 0x2BU
+#define RC522_REG_TIMER_RELOAD_H  0x2CU
+#define RC522_REG_TIMER_RELOAD_L  0x2DU
+#define RC522_REG_VERSION         0x37U
 
-/* Task Stack Sizes (bytes) */
-#define ACCESS_TASK_STACK_SIZE      4096U
-#define INTRUSION_TASK_STACK_SIZE   4096U
-#define ESPNOW_TX_TASK_STACK_SIZE   4096U
+/* ========== RC522 Commands ========== */
+#define RC522_CMD_IDLE          0x00U
+#define RC522_CMD_MEM           0x01U
+#define RC522_CMD_CALC_CRC      0x03U
+#define RC522_CMD_TRANSMIT      0x04U
+#define RC522_CMD_RECEIVE       0x08U
+#define RC522_CMD_TRANSCEIVE    0x0CU
+#define RC522_CMD_MF_AUTHENT    0x0EU
+#define RC522_CMD_SOFT_RESET    0x0FU
+
+/* ========== PICC Commands ========== */
+#define PICC_CMD_REQA           0x26U
+#define PICC_CMD_SEL_CL1        0x93U
+#define PICC_CMD_SEL_CL2        0x95U
+
+/* ========== RC522 Status Codes ========== */
+#define RC522_STATUS_OK         0U
+#define RC522_STATUS_ERROR      1U
+#define RC522_STATUS_COLLISION  2U
+#define RC522_STATUS_TIMEOUT    3U
+#define RC522_STATUS_NO_ROOM    4U
+#define RC522_STATUS_CRC_WRONG  5U
+
+/* ========== Security System States ========== */
+typedef enum {
+    STATE_IDLE        = 0,   /* No IR detection */
+    STATE_IR_DETECTED = 1,   /* IR active, waiting for RFID or timeout */
+    STATE_AUTHORIZED  = 2,   /* RFID verified during IR detection */
+    STATE_INTRUSION   = 3    /* IR active but no RFID after timeout */
+} security_state_t;
+
+/* ========== Timing Constants ========== */
+#define IR_WINDOW_MS        5000U   /* 5-second window for RFID verification */
+#define RFID_POLL_MS        100U    /* Poll RFID every 100ms */
+#define IR_CHECK_MS         50U     /* Check IR sensor every 50ms */
+
+/* ========== RFID Database ========== */
+typedef struct {
+    uint8_t uid[4];
+    const char *name;
+    bool authorized;
+} rfid_entry_t;
+
+/* ========== ESP-NOW Emergency Message (must match Node A) ========== */
+typedef struct {
+    uint8_t msg_type;           /* 1 = Emergency alert, 2 = Clear */
+    uint8_t emergency_reasons;  /* Bitfield of emergency reasons */
+    char posture[16];           /* Current posture string */
+    float sensor_value;         /* Relevant sensor value */
+} espnow_emergency_msg_t;
+
+/* ========== Task Priorities ========== */
+#define SECURITY_TASK_PRIORITY     6
+#define MQTT_TASK_PRIORITY         5
+#define ESPNOW_RX_TASK_PRIORITY    4
+
+/* ========== Task Stack Sizes (bytes) ========== */
+#define SECURITY_TASK_STACK_SIZE   4096U
+#define MQTT_TASK_STACK_SIZE       8192U
+#define ESPNOW_RX_TASK_STACK_SIZE  4096U
+
+/* ========== MQTT Publish Interval ========== */
+#define MQTT_PUBLISH_INTERVAL_MS   5000U
 
 #endif /* CONFIG_H */

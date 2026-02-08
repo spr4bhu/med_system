@@ -1,155 +1,183 @@
-#include "dht22.h"
+#include "sensors/dht22.h"
 #include "config.h"
-#include "driver/gpio.h"
 #include "esp_log.h"
+#include "driver/gpio.h"
+#include "rom/ets_sys.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "esp_timer.h"
 
-static const char* TAG = "DHT22";
+static const char *TAG = "DHT11";
 
-/* DHT22 Timing (microseconds) */
-#define DHT22_START_SIGNAL_US   1000U
-#define DHT22_RESPONSE_WAIT_US  40U
-#define DHT22_BIT_TIMEOUT_US    100U
+static void dht11_set_output(uint8_t level)
+{
+    (void)gpio_set_direction((gpio_num_t)DHT11_GPIO_PIN, GPIO_MODE_OUTPUT);
+    (void)gpio_set_level((gpio_num_t)DHT11_GPIO_PIN, (uint32_t)level);
+}
 
-/* Helper function to wait for GPIO level with timeout */
-static esp_err_t wait_for_level(uint32_t level, uint32_t timeout_us) {
-    uint32_t start = (uint32_t)esp_timer_get_time();
-    uint32_t elapsed = 0U;
+static void dht11_set_input(void)
+{
+    (void)gpio_set_direction((gpio_num_t)DHT11_GPIO_PIN, GPIO_MODE_INPUT);
+}
 
-    while (elapsed < timeout_us) {
-        if (gpio_get_level(DHT22_GPIO) == (int)level) {
-            return ESP_OK;
+static uint8_t dht11_read_level(void)
+{
+    return (uint8_t)gpio_get_level((gpio_num_t)DHT11_GPIO_PIN);
+}
+
+/* Wait for GPIO to reach desired level with timeout */
+static int dht11_wait_for_level(uint8_t level, int timeout_us)
+{
+    int elapsed = 0;
+    while (dht11_read_level() != level) {
+        if (elapsed > timeout_us) {
+            return -1;
         } else {
             /* Continue waiting */
         }
-        elapsed = (uint32_t)esp_timer_get_time() - start;
+        ets_delay_us(1);
+        elapsed++;
     }
-
-    return ESP_ERR_TIMEOUT;
+    return elapsed;
 }
 
-esp_err_t dht22_init(void) {
-    ESP_LOGI(TAG, "Initializing DHT22...");
+/* Read one bit from DHT11 */
+static int dht11_read_bit(void)
+{
+    /* Wait for low period (50us) */
+    if (dht11_wait_for_level(0, 60) < 0) {
+        return -1;
+    } else {
+        /* Low period complete */
+    }
 
-    gpio_config_t io_conf;
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pin_bit_mask = (1ULL << DHT22_GPIO);
-    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+    /* Wait for high period start */
+    if (dht11_wait_for_level(1, 80) < 0) {
+        return -1;
+    } else {
+        /* High period started */
+    }
+
+    /* Measure high period: after 40us it's a '1', before is '0' */
+    ets_delay_us(40);
+    int bit_value = (int)dht11_read_level();
+
+    /* Wait for high period to end */
+    (void)dht11_wait_for_level(0, 60);
+
+    return bit_value;
+}
+
+esp_err_t dht11_init(void)
+{
+    gpio_config_t io_conf = {
+        .pin_bit_mask = (1ULL << DHT11_GPIO_PIN),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
 
     esp_err_t ret = gpio_config(&io_conf);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "GPIO config failed: %d", ret);
+        ESP_LOGE(TAG, "GPIO config failed: %s", esp_err_to_name(ret));
         return ret;
     } else {
-        /* Set initial state high */
-        (void)gpio_set_level(DHT22_GPIO, 1);
-        ESP_LOGI(TAG, "DHT22 initialized successfully");
+        /* GPIO configured */
     }
 
+    /* Set initial state to high and wait for stabilization */
+    (void)gpio_set_level((gpio_num_t)DHT11_GPIO_PIN, 1);
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    ESP_LOGI(TAG, "DHT11 initialized on GPIO %d with pull-up", DHT11_GPIO_PIN);
     return ESP_OK;
 }
 
-esp_err_t dht22_read_temp(float* temperature, float* humidity) {
-    if ((temperature == NULL) || (humidity == NULL)) {
-        return ESP_ERR_INVALID_ARG;
+/**
+ * Read DHT11 sensor data.
+ * Returns: 0 on success, -1 on timeout, -2 on checksum error
+ */
+int dht11_read(dht11_data_t *data)
+{
+    if (data == NULL) {
+        return -1;
     } else {
-        /* Valid pointers */
+        /* Valid pointer */
     }
 
-    uint8_t data[5] = {0U, 0U, 0U, 0U, 0U};
-    esp_err_t ret = ESP_OK;
+    uint8_t bytes[5] = {0};
+    int bit_value;
 
-    /* Send start signal */
-    (void)gpio_set_direction(DHT22_GPIO, GPIO_MODE_OUTPUT);
-    (void)gpio_set_level(DHT22_GPIO, 0);
-    ets_delay_us(DHT22_START_SIGNAL_US);
-    (void)gpio_set_level(DHT22_GPIO, 1);
+    /* Send start signal: pull low for 18ms */
+    dht11_set_output(0);
+    ets_delay_us(18000);
 
-    /* Switch to input mode */
-    (void)gpio_set_direction(DHT22_GPIO, GPIO_MODE_INPUT);
+    /* Pull high for 40us before releasing */
+    dht11_set_output(1);
+    ets_delay_us(40);
 
-    /* Wait for DHT22 response */
-    ret = wait_for_level(0U, 80U);
-    if (ret != ESP_OK) {
-        ESP_LOGW(TAG, "No response from DHT22");
-        return ret;
+    /* Switch to input mode - DHT11 takes over */
+    dht11_set_input();
+
+    /* Wait for DHT11 response (80us low, 80us high, then 80us low) */
+    if (dht11_wait_for_level(0, 100) < 0) {
+        ESP_LOGD(TAG, "No response (timeout waiting for initial low)");
+        return -1;
     } else {
-        /* Response received */
+        /* Initial low received */
     }
 
-    ret = wait_for_level(1U, 80U);
-    if (ret != ESP_OK) {
-        return ret;
+    if (dht11_wait_for_level(1, 100) < 0) {
+        ESP_LOGD(TAG, "No response (timeout waiting for initial high)");
+        return -1;
     } else {
-        /* Continue */
+        /* Initial high received */
     }
 
-    ret = wait_for_level(0U, 80U);
-    if (ret != ESP_OK) {
-        return ret;
+    if (dht11_wait_for_level(0, 100) < 0) {
+        ESP_LOGD(TAG, "No response (timeout waiting for data start)");
+        return -1;
     } else {
-        /* Start reading data */
+        /* Data start received */
     }
+
+    /* Disable task switching during bit reading (WiFi still runs) */
+    vTaskSuspendAll();
 
     /* Read 40 bits (5 bytes) */
-    for (uint8_t byte_idx = 0U; byte_idx < 5U; byte_idx++) {
-        for (uint8_t bit_idx = 0U; bit_idx < 8U; bit_idx++) {
-            /* Wait for bit start (low) */
-            ret = wait_for_level(0U, DHT22_BIT_TIMEOUT_US);
-            if (ret != ESP_OK) {
-                ESP_LOGW(TAG, "Bit read timeout");
-                return ret;
+    for (int i = 0; i < 5; i++) {
+        for (int j = 7; j >= 0; j--) {
+            bit_value = dht11_read_bit();
+            if (bit_value < 0) {
+                (void)xTaskResumeAll();
+                return -1;
             } else {
-                /* Continue */
-            }
-
-            /* Wait for high level */
-            ret = wait_for_level(1U, DHT22_BIT_TIMEOUT_US);
-            if (ret != ESP_OK) {
-                return ret;
-            } else {
-                /* Continue */
-            }
-
-            /* Measure high pulse width */
-            ets_delay_us(DHT22_RESPONSE_WAIT_US);
-
-            if (gpio_get_level(DHT22_GPIO) == 1) {
-                /* Long pulse = 1 */
-                data[byte_idx] |= (uint8_t)(1U << (7U - bit_idx));
-            } else {
-                /* Short pulse = 0 (already 0) */
+                bytes[i] |= (uint8_t)((uint8_t)bit_value << (uint8_t)j);
             }
         }
     }
 
+    /* Re-enable task switching */
+    (void)xTaskResumeAll();
+
     /* Verify checksum */
-    uint8_t checksum = data[0] + data[1] + data[2] + data[3];
-    if (checksum != data[4]) {
-        ESP_LOGW(TAG, "Checksum mismatch: expected 0x%02X, got 0x%02X", data[4], checksum);
-        return ESP_ERR_INVALID_CRC;
+    uint8_t checksum = (uint8_t)(bytes[0] + bytes[1] + bytes[2] + bytes[3]);
+    if (checksum != bytes[4]) {
+        static uint32_t checksum_error_count = 0;
+        checksum_error_count++;
+        if ((checksum_error_count % 10U) == 1U) {
+            ESP_LOGW(TAG, "Checksum errors (count: %lu, calc=0x%02X recv=0x%02X)",
+                     (unsigned long)checksum_error_count, checksum, bytes[4]);
+        }
+        return -2;
     } else {
         /* Checksum OK */
     }
 
-    /* Convert humidity (MISRA Rule 10.3 - explicit cast) */
-    uint16_t humid_raw = ((uint16_t)data[0] << 8) | (uint16_t)data[1];
-    *humidity = (float)humid_raw / 10.0f;
+    data->humidity = bytes[0];
+    data->temperature = (float)bytes[2];
+    data->crc_ok = 1U;
+    data->last_read_ms = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
 
-    /* Convert temperature */
-    uint16_t temp_raw = ((uint16_t)(data[2] & 0x7FU) << 8) | (uint16_t)data[3];
-    *temperature = (float)temp_raw / 10.0f;
-
-    /* Check sign bit for negative temperature */
-    if ((data[2] & 0x80U) != 0U) {
-        *temperature = -*temperature;
-    } else {
-        /* Positive temperature */
-    }
-
-    return ESP_OK;
+    return 0;
 }

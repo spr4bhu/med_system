@@ -6,10 +6,16 @@ sdkconfig.old
 *.elf
 *.map
 
-# Secrets
+# Secrets & Credentials
 **/config.h
 **/encryption_keys.h
+**/hivemq_cert.h
+**/sms_alert.h
 cloud-server/.env
+
+# Cache
+.cache/
+**/.cache/
 
 # Node.js
 node_modules/

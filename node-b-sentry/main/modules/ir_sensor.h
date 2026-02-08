@@ -6,6 +6,6 @@
 
 /* IR Sensor Function Prototypes (MISRA Rule 8.4) */
 esp_err_t ir_sensor_init(void);
-bool ir_sensor_read(void);
+bool ir_sensor_is_detected(void);
 
 #endif /* IR_SENSOR_H */

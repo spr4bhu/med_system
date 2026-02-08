@@ -5,6 +5,7 @@
 #include "freertos/semphr.h"
 #include "freertos/event_groups.h"
 #include "esp_system.h"
+#include "esp_mac.h"
 #include "esp_wifi.h"
 #include "esp_event.h"
 #include "esp_log.h"
@@ -26,7 +27,6 @@ static const char* TAG = "NODE_A";
 
 /* Global FreeRTOS objects (defined here, declared in data_structures.h) */
 QueueHandle_t sensor_data_queue;
-QueueHandle_t node_b_data_queue;
 SemaphoreHandle_t i2c_mutex;
 EventGroupHandle_t emergency_event_group;
 
@@ -50,7 +50,7 @@ void app_main(void) {
     ESP_LOGI(TAG, "*    Node A Gateway - Medical Monitor System    *");
     ESP_LOGI(TAG, "**************************************************");
 
-    /* Print MAC address for encryption_keys.h */
+    /* Print MAC address for peer configuration */
     print_mac_address();
 
     /* Initialize NVS (MISRA Rule 17.7 - check return value) */
@@ -106,17 +106,9 @@ void app_main(void) {
     /* Create FreeRTOS synchronization objects */
     ESP_LOGI(TAG, "Creating FreeRTOS objects...");
 
-    sensor_data_queue = xQueueCreate(10, sizeof(sensor_data_t));
+    sensor_data_queue = xQueueCreate(1U, sizeof(sensor_data_t));
     if (sensor_data_queue == NULL) {
         ESP_LOGE(TAG, "Failed to create sensor_data_queue");
-        return;
-    } else {
-        /* Queue created */
-    }
-
-    node_b_data_queue = xQueueCreate(20, sizeof(espnow_packet_t));
-    if (node_b_data_queue == NULL) {
-        ESP_LOGE(TAG, "Failed to create node_b_data_queue");
         return;
     } else {
         /* Queue created */
@@ -157,7 +149,7 @@ void app_main(void) {
         ESP_LOGI(TAG, "HW827 heart rate sensor initialized");
     }
 
-    ret = dht22_init();
+    ret = dht11_init();
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "DHT11 init failed: %d", ret);
         /* Continue anyway */
@@ -239,18 +231,18 @@ void app_main(void) {
     }
 
     task_ret = xTaskCreate(
-        cloud_tx_task,
-        "cloud_tx",
+        mqtt_task,
+        "mqtt",
         CLOUD_TX_TASK_STACK_SIZE,
         NULL,
         CLOUD_TX_TASK_PRIORITY,
         NULL
     );
     if (task_ret != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create cloud_tx_task");
+        ESP_LOGE(TAG, "Failed to create mqtt_task");
         return;
     } else {
-        ESP_LOGI(TAG, "Cloud TX task created");
+        ESP_LOGI(TAG, "MQTT task created");
     }
 
     ESP_LOGI(TAG, "**************************************************");

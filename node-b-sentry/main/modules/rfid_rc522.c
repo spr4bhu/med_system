@@ -6,190 +6,275 @@
 #include "esp_log.h"
 #include <string.h>
 
-static const char* TAG = "RFID_RC522";
-
-/* RC522 Register Addresses */
-#define RC522_REG_COMMAND       0x01U
-#define RC522_REG_COMM_IRQ      0x04U
-#define RC522_REG_FIFO_DATA     0x09U
-#define RC522_REG_FIFO_LEVEL    0x0AU
-#define RC522_REG_CONTROL       0x0CU
-#define RC522_REG_BIT_FRAMING   0x0DU
-#define RC522_REG_MODE          0x11U
-#define RC522_REG_TX_CONTROL    0x14U
-#define RC522_REG_TX_ASK        0x15U
-#define RC522_REG_VERSION       0x37U
-
-/* RC522 Commands */
-#define RC522_CMD_IDLE          0x00U
-#define RC522_CMD_TRANSCEIVE    0x0CU
-#define RC522_CMD_SOFT_RESET    0x0FU
-
-/* PICC Commands */
-#define PICC_CMD_REQA           0x26U
-#define PICC_CMD_SEL_CL1        0x93U
+static const char *TAG = "RFID_RC522";
 
 static spi_device_handle_t spi_device;
 
-/* Helper function to write register */
-static esp_err_t rc522_write_reg(uint8_t reg, uint8_t value) {
-    uint8_t tx_data[2];
-    tx_data[0] = (reg << 1) & 0x7EU;  /* Write mode */
-    tx_data[1] = value;
+/* Authorized and Unauthorized RFID tags database */
+static const rfid_entry_t rfid_database[] = {
+    /* Authorized tags */
+    {{0x72U, 0x0BU, 0xA7U, 0x05U}, "Authorized Tag 1", true},
 
-    spi_transaction_t trans;
-    (void)memset(&trans, 0, sizeof(trans));
-    trans.length = 16U;  /* 2 bytes * 8 bits */
-    trans.tx_buffer = tx_data;
+    /* Unauthorized tags */
+    {{0x52U, 0x81U, 0xA2U, 0x5CU}, "Unauthorized Tag 1", false},
+};
 
-    esp_err_t ret = ESP_OK;
+#define RFID_DATABASE_SIZE (sizeof(rfid_database) / sizeof(rfid_database[0]))
 
-    if (xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000U)) != pdTRUE) {
-        ESP_LOGW(TAG, "Failed to acquire SPI mutex");
-        return ESP_ERR_TIMEOUT;
+/* ========== Register Read/Write ========== */
+
+static void rc522_write_reg(uint8_t reg, uint8_t val)
+{
+    uint8_t tx_data[2] = {(uint8_t)((reg << 1) & 0x7EU), val};
+    spi_transaction_t trans = {
+        .length = 16U,
+        .tx_buffer = tx_data,
+    };
+
+    if (xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000U)) == pdTRUE) {
+        (void)spi_device_transmit(spi_device, &trans);
+        (void)xSemaphoreGive(spi_mutex);
     } else {
-        /* Mutex acquired */
+        ESP_LOGW(TAG, "Failed to acquire SPI mutex for write");
     }
-
-    ret = spi_device_transmit(spi_device, &trans);
-    xSemaphoreGive(spi_mutex);
-
-    return ret;
 }
 
-/* Helper function to read register */
-static esp_err_t rc522_read_reg(uint8_t reg, uint8_t* value) {
-    if (value == NULL) {
-        return ESP_ERR_INVALID_ARG;
+static uint8_t rc522_read_reg(uint8_t reg)
+{
+    uint8_t tx_data[2] = {(uint8_t)(((reg << 1) & 0x7EU) | 0x80U), 0x00U};
+    uint8_t rx_data[2] = {0U, 0U};
+    spi_transaction_t trans = {
+        .length = 16U,
+        .tx_buffer = tx_data,
+        .rx_buffer = rx_data,
+    };
+
+    if (xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000U)) == pdTRUE) {
+        (void)spi_device_transmit(spi_device, &trans);
+        (void)xSemaphoreGive(spi_mutex);
     } else {
-        /* Valid pointer */
+        ESP_LOGW(TAG, "Failed to acquire SPI mutex for read");
     }
 
-    uint8_t tx_data[2];
-    uint8_t rx_data[2];
-    tx_data[0] = ((reg << 1) & 0x7EU) | 0x80U;  /* Read mode */
-    tx_data[1] = 0x00U;
-
-    spi_transaction_t trans;
-    (void)memset(&trans, 0, sizeof(trans));
-    trans.length = 16U;
-    trans.tx_buffer = tx_data;
-    trans.rx_buffer = rx_data;
-
-    esp_err_t ret = ESP_OK;
-
-    if (xSemaphoreTake(spi_mutex, pdMS_TO_TICKS(1000U)) != pdTRUE) {
-        return ESP_ERR_TIMEOUT;
-    } else {
-        /* Mutex acquired */
-    }
-
-    ret = spi_device_transmit(spi_device, &trans);
-    xSemaphoreGive(spi_mutex);
-
-    if (ret == ESP_OK) {
-        *value = rx_data[1];
-    } else {
-        /* Read failed */
-    }
-
-    return ret;
+    return rx_data[1];
 }
 
-esp_err_t rfid_rc522_init(void) {
-    ESP_LOGI(TAG, "Initializing RC522...");
+static void rc522_set_bitmask(uint8_t reg, uint8_t mask)
+{
+    uint8_t tmp = rc522_read_reg(reg);
+    rc522_write_reg(reg, tmp | mask);
+}
 
-    /* Configure RST pin */
-    gpio_config_t io_conf;
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pin_bit_mask = (1ULL << RFID_RST_GPIO);
-    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+static void rc522_clear_bitmask(uint8_t reg, uint8_t mask)
+{
+    uint8_t tmp = rc522_read_reg(reg);
+    rc522_write_reg(reg, (uint8_t)(tmp & ((uint8_t)~mask)));
+}
 
-    esp_err_t ret = gpio_config(&io_conf);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "GPIO config failed: %d", ret);
-        return ret;
+static void rc522_antenna_on(void)
+{
+    uint8_t temp = rc522_read_reg(RC522_REG_TX_CONTROL);
+    if ((temp & 0x03U) == 0U) {
+        rc522_set_bitmask(RC522_REG_TX_CONTROL, 0x03U);
     } else {
-        /* GPIO configured */
+        /* Antenna already on */
     }
+}
 
-    /* Reset RC522 */
-    (void)gpio_set_level(RFID_RST_GPIO, 0);
-    vTaskDelay(pdMS_TO_TICKS(10U));
-    (void)gpio_set_level(RFID_RST_GPIO, 1);
+/* ========== RC522 Init ========== */
+
+static void rc522_chip_init(void)
+{
+    /* Soft reset */
+    rc522_write_reg(RC522_REG_COMMAND, RC522_CMD_SOFT_RESET);
     vTaskDelay(pdMS_TO_TICKS(50U));
 
-    /* Configure SPI bus */
-    spi_bus_config_t bus_config;
-    (void)memset(&bus_config, 0, sizeof(bus_config));
-    bus_config.mosi_io_num = SPI_MOSI_GPIO;
-    bus_config.miso_io_num = SPI_MISO_GPIO;
-    bus_config.sclk_io_num = SPI_SCK_GPIO;
-    bus_config.quadwp_io_num = -1;
-    bus_config.quadhd_io_num = -1;
+    /* Timer setup */
+    rc522_write_reg(RC522_REG_TIMER_MODE, 0x8DU);
+    rc522_write_reg(RC522_REG_TIMER_PRESCALER, 0x3EU);
+    rc522_write_reg(RC522_REG_TIMER_RELOAD_L, 30U);
+    rc522_write_reg(RC522_REG_TIMER_RELOAD_H, 0U);
 
-    ret = spi_bus_initialize(SPI_HOST_ID, &bus_config, SPI_DMA_DISABLED);
-    if ((ret != ESP_OK) && (ret != ESP_ERR_INVALID_STATE)) {
-        ESP_LOGE(TAG, "SPI bus init failed: %d", ret);
-        return ret;
-    } else {
-        /* SPI bus initialized */
+    /* TX setup */
+    rc522_write_reg(RC522_REG_TX_ASK, 0x40U);
+    rc522_write_reg(RC522_REG_MODE, 0x3DU);
+
+    /* Turn on antenna */
+    rc522_antenna_on();
+}
+
+/* ========== Communication ========== */
+
+static uint8_t rc522_communicate(uint8_t command, uint8_t *send_data, uint8_t send_len,
+                                  uint8_t *back_data, uint8_t *back_len, uint8_t *valid_bits)
+{
+    uint8_t n;
+    uint8_t wait_irq = 0x00U;
+
+    switch (command) {
+        case RC522_CMD_MF_AUTHENT:
+            wait_irq = 0x10U;
+            break;
+        case RC522_CMD_TRANSCEIVE:
+            wait_irq = 0x30U;
+            break;
+        default:
+            break;
     }
 
-    /* Add RC522 device to SPI bus */
-    spi_device_interface_config_t dev_config;
-    (void)memset(&dev_config, 0, sizeof(dev_config));
-    dev_config.clock_speed_hz = (int)SPI_CLK_SPEED_HZ;
-    dev_config.mode = 0;  /* SPI mode 0 */
-    dev_config.spics_io_num = RFID_SS_GPIO;
-    dev_config.queue_size = 7;
+    rc522_write_reg(RC522_REG_COM_IRQ, 0x7FU);
+    rc522_clear_bitmask(RC522_REG_FIFO_LEVEL, 0x80U);
+    rc522_write_reg(RC522_REG_COMMAND, RC522_CMD_IDLE);
 
-    ret = spi_bus_add_device(SPI_HOST_ID, &dev_config, &spi_device);
+    /* Write data to FIFO */
+    for (uint8_t i = 0U; i < send_len; i++) {
+        rc522_write_reg(RC522_REG_FIFO_DATA, send_data[i]);
+    }
+
+    /* Execute command */
+    rc522_write_reg(RC522_REG_COMMAND, command);
+    if (command == RC522_CMD_TRANSCEIVE) {
+        rc522_set_bitmask(RC522_REG_BIT_FRAMING, 0x80U);
+    } else {
+        /* Not transceive */
+    }
+
+    /* Wait for completion */
+    n = 100U;
+    while (n > 0U) {
+        n--;
+        uint8_t irq = rc522_read_reg(RC522_REG_COM_IRQ);
+        if ((irq & wait_irq) != 0U) {
+            break;
+        } else if ((irq & 0x01U) != 0U) {
+            return RC522_STATUS_TIMEOUT;
+        } else {
+            /* Keep waiting */
+        }
+        vTaskDelay(pdMS_TO_TICKS(1U));
+    }
+
+    rc522_clear_bitmask(RC522_REG_BIT_FRAMING, 0x80U);
+
+    if (n == 0U) {
+        return RC522_STATUS_TIMEOUT;
+    } else {
+        /* Completed in time */
+    }
+
+    /* Check errors */
+    uint8_t error = rc522_read_reg(RC522_REG_ERROR);
+    if ((error & 0x1BU) != 0U) {
+        return RC522_STATUS_ERROR;
+    } else {
+        /* No errors */
+    }
+
+    /* Read response */
+    if ((back_data != NULL) && (back_len != NULL)) {
+        n = rc522_read_reg(RC522_REG_FIFO_LEVEL);
+        *back_len = n;
+        for (uint8_t i = 0U; i < n; i++) {
+            back_data[i] = rc522_read_reg(RC522_REG_FIFO_DATA);
+        }
+        if (valid_bits != NULL) {
+            *valid_bits = (uint8_t)(rc522_read_reg(RC522_REG_CONTROL) & 0x07U);
+        } else {
+            /* No valid bits requested */
+        }
+    } else {
+        /* No response buffer */
+    }
+
+    return RC522_STATUS_OK;
+}
+
+static uint8_t rc522_request(uint8_t *atqa)
+{
+    uint8_t status;
+    uint8_t back_len = 0U;
+    uint8_t send_data = PICC_CMD_REQA;
+
+    rc522_write_reg(RC522_REG_BIT_FRAMING, 0x07U);
+    status = rc522_communicate(RC522_CMD_TRANSCEIVE, &send_data, 1U, atqa, &back_len, NULL);
+
+    if ((status != RC522_STATUS_OK) || (back_len != 2U)) {
+        status = RC522_STATUS_ERROR;
+    } else {
+        /* Request OK */
+    }
+
+    return status;
+}
+
+static uint8_t rc522_anticoll(uint8_t *uid)
+{
+    uint8_t status;
+    uint8_t back_len = 0U;
+    uint8_t send_data[2] = {PICC_CMD_SEL_CL1, 0x20U};
+
+    rc522_write_reg(RC522_REG_BIT_FRAMING, 0x00U);
+    status = rc522_communicate(RC522_CMD_TRANSCEIVE, send_data, 2U, uid, &back_len, NULL);
+
+    if ((status != RC522_STATUS_OK) || (back_len != 5U)) {
+        status = RC522_STATUS_ERROR;
+    } else {
+        /* Anticollision OK */
+    }
+
+    return status;
+}
+
+/* ========== Public API ========== */
+
+esp_err_t rfid_rc522_init(void)
+{
+    ESP_LOGI(TAG, "Initializing RC522 RFID reader...");
+
+    /* SPI bus configuration */
+    spi_bus_config_t buscfg = {
+        .miso_io_num = RC522_MISO_PIN,
+        .mosi_io_num = RC522_MOSI_PIN,
+        .sclk_io_num = RC522_SCLK_PIN,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+    };
+
+    /* SPI device configuration */
+    spi_device_interface_config_t devcfg = {
+        .clock_speed_hz = 5000000,  /* 5 MHz */
+        .mode = 0,
+        .spics_io_num = RC522_CS_PIN,
+        .queue_size = 7,
+    };
+
+    /* Initialize SPI bus */
+    esp_err_t ret = spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO);
+    if ((ret != ESP_OK) && (ret != ESP_ERR_INVALID_STATE)) {
+        ESP_LOGE(TAG, "SPI bus init failed: %s", esp_err_to_name(ret));
+        return ret;
+    } else {
+        /* SPI bus ready */
+    }
+
+    ret = spi_bus_add_device(SPI3_HOST, &devcfg, &spi_device);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "SPI add device failed: %d", ret);
+        ESP_LOGE(TAG, "SPI add device failed: %s", esp_err_to_name(ret));
         return ret;
     } else {
         /* Device added */
     }
 
-    /* Soft reset RC522 */
-    ret = rc522_write_reg(RC522_REG_COMMAND, RC522_CMD_SOFT_RESET);
-    if (ret != ESP_OK) {
-        return ret;
-    } else {
-        /* Reset command sent */
-    }
+    /* Initialize RC522 chip */
+    rc522_chip_init();
 
-    vTaskDelay(pdMS_TO_TICKS(50U));
+    /* Verify communication by reading version */
+    uint8_t version = rc522_read_reg(RC522_REG_VERSION);
+    ESP_LOGI(TAG, "RC522 Version: 0x%02X", version);
 
-    /* Read version register to verify communication */
-    uint8_t version = 0U;
-    ret = rc522_read_reg(RC522_REG_VERSION, &version);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to read version: %d", ret);
-        return ret;
-    } else {
-        ESP_LOGI(TAG, "RC522 Version: 0x%02X", version);
-    }
-
-    /* Enable antenna */
-    uint8_t tx_control = 0U;
-    ret = rc522_read_reg(RC522_REG_TX_CONTROL, &tx_control);
-    if (ret == ESP_OK) {
-        if ((tx_control & 0x03U) != 0x03U) {
-            ret = rc522_write_reg(RC522_REG_TX_CONTROL, tx_control | 0x03U);
-        } else {
-            /* Antenna already enabled */
-        }
-    } else {
-        /* Read failed */
-    }
-
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to enable antenna: %d", ret);
-        return ret;
+    if ((version == 0x00U) || (version == 0xFFU)) {
+        ESP_LOGE(TAG, "RC522 not responding (version=0x%02X)", version);
+        return ESP_FAIL;
     } else {
         ESP_LOGI(TAG, "RC522 initialized successfully");
     }
@@ -197,28 +282,47 @@ esp_err_t rfid_rc522_init(void) {
     return ESP_OK;
 }
 
-esp_err_t rfid_rc522_read_uid(uint32_t* uid) {
-    if (uid == NULL) {
-        return ESP_ERR_INVALID_ARG;
-    } else {
-        /* Valid pointer */
-    }
+rfid_result_t rfid_rc522_check_card(void)
+{
+    uint8_t atqa[2] = {0U, 0U};
+    uint8_t uid[5] = {0U, 0U, 0U, 0U, 0U};
+    rfid_result_t result = {false, false, "Unknown"};
 
-    /* Simplified: Return simulated UID for hackathon */
-    /* Full implementation would involve REQA, anticollision, and SELECT */
-    *uid = 0x12345678U;  /* Simulated authorized UID */
+    /* Request for a card */
+    if (rc522_request(atqa) == RC522_STATUS_OK) {
+        /* Anti-collision, get card UID */
+        if (rc522_anticoll(uid) == RC522_STATUS_OK) {
+            result.detected = true;
+            ESP_LOGI(TAG, "RFID Card detected - UID: %02X:%02X:%02X:%02X",
+                     uid[0], uid[1], uid[2], uid[3]);
 
-    return ESP_OK;
-}
+            /* Check against database */
+            for (size_t i = 0U; i < RFID_DATABASE_SIZE; i++) {
+                if (memcmp(uid, rfid_database[i].uid, 4U) == 0) {
+                    result.authorized = rfid_database[i].authorized;
+                    result.name = rfid_database[i].name;
 
-bool rfid_rc522_is_authorized(uint32_t uid) {
-    for (size_t i = 0U; i < AUTHORIZED_UID_COUNT; i++) {
-        if (uid == AUTHORIZED_UIDS[i]) {
-            return true;
+                    if (rfid_database[i].authorized) {
+                        ESP_LOGI(TAG, "✓ AUTHORIZED - %s", rfid_database[i].name);
+                    } else {
+                        ESP_LOGW(TAG, "✗ UNAUTHORIZED - %s", rfid_database[i].name);
+                    }
+                    return result;
+                } else {
+                    /* Continue checking */
+                }
+            }
+
+            /* UID not in database - treat as unauthorized */
+            ESP_LOGW(TAG, "✗ UNKNOWN TAG - Not in database");
+            result.authorized = false;
+            result.name = "Unknown (Not Registered)";
         } else {
-            /* Continue checking */
+            /* Anticollision failed */
         }
+    } else {
+        /* No card present */
     }
 
-    return false;  /* Not found in authorized list */
+    return result;
 }

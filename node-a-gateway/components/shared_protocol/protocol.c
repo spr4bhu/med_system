@@ -3,23 +3,17 @@
 
 /* Protocol utility functions */
 
-/* This file provides common protocol utilities */
-/* Currently minimal - can be expanded with validation functions */
-
-const char* get_message_type_name(message_type_t msg_type) {
+const char *get_message_type_name(message_type_t msg_type)
+{
     switch (msg_type) {
-        case MSG_TYPE_SENSOR_DATA:
-            return "SENSOR_DATA";
-        case MSG_TYPE_FALL_ALERT:
-            return "FALL_ALERT";
-        case MSG_TYPE_SOS:
-            return "SOS";
-        case MSG_TYPE_ACCESS_LOG:
-            return "ACCESS_LOG";
-        case MSG_TYPE_INTRUSION:
-            return "INTRUSION";
-        case MSG_TYPE_VITALS_ABNORMAL:
-            return "VITALS_ABNORMAL";
+        case MSG_TYPE_EMERGENCY:
+            return "EMERGENCY";
+        case MSG_TYPE_CLEAR:
+            return "CLEAR";
+        case MSG_TYPE_SECURITY_ALERT:
+            return "SECURITY_ALERT";
+        case MSG_TYPE_STATUS:
+            return "STATUS";
         default:
             return "UNKNOWN";
     }

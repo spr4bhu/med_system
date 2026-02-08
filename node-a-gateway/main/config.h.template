@@ -5,57 +5,94 @@
 #define CONFIG_H
 
 #include "driver/i2c.h"
+#include "driver/adc.h"
 
-/* WiFi Credentials */
-#define WIFI_SSID "YOUR_SSID"
-#define WIFI_PASSWORD "YOUR_PASSWORD"
+/* ========== WiFi Credentials ========== */
+#define WIFI_SSID     "YOUR_SSID"
+#define WIFI_PASS     "YOUR_PASSWORD"
 
-/* Cloud Server Configuration */
-#define CLOUD_SERVER_URL "https://yourserver.com/api/data"
-#define API_KEY "your-api-key"
+/* ========== MQTT Configuration (HiveMQ Cloud TLS) ========== */
+#define MQTT_BROKER_URI "mqtts://YOUR_BROKER.s1.eu.hivemq.cloud:8883"
+#define MQTT_USERNAME   "YOUR_MQTT_USER"
+#define MQTT_PASSWORD   "YOUR_MQTT_PASS"
+#define USE_HIVEMQ_CLOUD 1  /* Set to 0 for local MQTT */
 
-/* GPIO Pin Configuration - Node A */
+/* ========== SMS / IFTTT Alert Configuration ========== */
+#define USE_TWILIO 0
+#define USE_IFTTT  1
+#define IFTTT_EVENT_NAME "esp32_emergency"
+#define IFTTT_KEY        "YOUR_IFTTT_KEY_HERE"
+
+/* ========== ESP-NOW Configuration ========== */
+#define ESP_NOW_CHANNEL  1
+
+/* ========== GPIO Pin Configuration - Node A ========== */
 #define I2C_MASTER_SDA_IO    21
 #define I2C_MASTER_SCL_IO    22
 #define I2C_MASTER_NUM       I2C_NUM_0
 #define I2C_MASTER_FREQ_HZ   100000
 
-#define DHT22_GPIO           4   /* DHT11 temperature sensor (1-wire) */
-#define HW827_PULSE_GPIO     14  /* HW827 heart rate sensor (pulse input) */
-#define SOS_BUTTON_GPIO      5
-#define STATUS_LED_GPIO      2
+#define EMERGENCY_BUTTON_PIN 4   /* GPIO4 - external 2.2k pull-up */
+#define DHT11_GPIO_PIN       5   /* GPIO5 - DHT11 1-wire */
+#define HW827_ADC_CHANNEL    ADC1_CHANNEL_0  /* GPIO36 */
 
-/* I2C Device Addresses */
+/* ========== I2C Device Addresses ========== */
 #define MPU6050_I2C_ADDR     0x68U
-/* Note: HW827 uses GPIO pulse detection, not I2C */
 
-/* Sensor Thresholds */
-#define FALL_THRESHOLD_G     2.5f
-#define FREEFALL_THRESHOLD_G 0.5f
-#define MAX_HEART_RATE_BPM   200.0f
-#define MIN_HEART_RATE_BPM   40.0f
-#define MAX_TEMP_C           38.5f
-#define MIN_TEMP_C           35.0f
+/* ========== MPU6050 Registers ========== */
+#define MPU6050_PWR_MGMT_1   0x6B
+#define MPU6050_SMPLRT_DIV   0x19
+#define MPU6050_CONFIG_REG   0x1A
+#define MPU6050_GYRO_CONFIG  0x1B
+#define MPU6050_ACCEL_CONFIG 0x1C
+#define MPU6050_ACCEL_XOUT_H 0x3B
 
-/* Task Intervals (milliseconds) */
-#define SENSOR_READ_INTERVAL_MS    100U
-#define FALL_CHECK_INTERVAL_MS     50U
+/* ========== MPU6050 Scaling Constants ========== */
+#define ACCEL_SCALE_FACTOR   8192.0f  /* +/-4g range */
+#define GYRO_SCALE_FACTOR    65.5f    /* +/-500 deg/s range */
+#define GRAVITY              9.81f
+
+/* ========== Fall Detection Parameters ========== */
+#define FALL_JERK_THRESHOLD  200.0f   /* g/s threshold */
+#define FALL_COOLDOWN_MS     2000     /* ms cooldown after fall */
+#define SAMPLE_INTERVAL_MS   10       /* 100Hz sampling */
+#define SAMPLE_INTERVAL_SEC  0.01f
+
+/* ========== Posture Detection Parameters ========== */
+#define ALPHA                0.99f        /* Gyro weight in complementary filter */
+#define RAD_TO_DEG           57.27272727f
+#define SITTING_PITCH_MIN    20.0f    /* Min pitch for sitting (degrees) */
+#define STANDING_PITCH_MAX   15.0f    /* Max pitch for standing (degrees) */
+#define LYING_PITCH_MAX      10.0f    /* Max pitch for lying (degrees) */
+#define HYSTERESIS_COUNT     50       /* Stable samples before transition */
+#define POSTURE_PUBLISH_DELAY_MS 2000
+
+/* ========== DHT11 Sensor Configuration ========== */
+#define DHT11_READ_INTERVAL_MS  2000    /* Minimum 2s (DHT11 spec) */
+#define TEMP_ALERT_THRESHOLD    30.0f   /* Alert if temp >= 30C */
+
+/* ========== HW-827 Sensor Configuration ========== */
+#define HW827_SAMPLE_INTERVAL   50      /* 20Hz (50ms) */
+#define HR_ALERT_THRESHOLD      120     /* Alert if BPM >= 120 */
+
+/* ========== Task Intervals (milliseconds) ========== */
+#define SENSOR_READ_INTERVAL_MS    SAMPLE_INTERVAL_MS
+#define FALL_CHECK_INTERVAL_MS     SAMPLE_INTERVAL_MS
 #define VITALS_CHECK_INTERVAL_MS   1000U
-#define CLOUD_TX_INTERVAL_MS       2000U
-#define FALL_DEBOUNCE_MS           5000U
+#define MQTT_PUBLISH_INTERVAL_MS   5000U
 
-/* Task Priorities (higher = more important) */
+/* ========== Task Priorities (higher = more important) ========== */
 #define FALL_DETECT_TASK_PRIORITY  6
 #define SENSOR_TASK_PRIORITY       5
 #define VITALS_TASK_PRIORITY       5
 #define GATEWAY_RX_TASK_PRIORITY   5
-#define CLOUD_TX_TASK_PRIORITY     3
+#define MQTT_TASK_PRIORITY         3
 
-/* Task Stack Sizes (bytes) */
+/* ========== Task Stack Sizes (bytes) ========== */
 #define SENSOR_TASK_STACK_SIZE     4096U
 #define FALL_TASK_STACK_SIZE       4096U
 #define VITALS_TASK_STACK_SIZE     4096U
 #define GATEWAY_TASK_STACK_SIZE    4096U
-#define CLOUD_TX_TASK_STACK_SIZE   8192U  /* Larger for TLS */
+#define MQTT_TASK_STACK_SIZE       8192U  /* Larger for TLS */
 
 #endif /* CONFIG_H */

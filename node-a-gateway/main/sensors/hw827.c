@@ -1,104 +1,119 @@
 #include "hw827.h"
 #include "config.h"
-#include "driver/gpio.h"
 #include "esp_log.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+#include "esp_adc/adc_oneshot.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
 
-static const char* TAG = "HW827";
+static const char *TAG = "HW827";
 
-/* Pulse counting state */
-static volatile uint32_t pulse_count = 0U;
-static uint32_t last_bpm_calc_time = 0U;
-static float last_bpm = 75.0f;  /* Default resting heart rate */
+static adc_oneshot_unit_handle_t adc1_handle = NULL;
+static adc_cali_handle_t adc1_cali_handle = NULL;
 
-/* ISR Handler for pulse detection (MISRA Rule 8.4 - static function) */
-static void IRAM_ATTR hw827_pulse_isr_handler(void* arg) {
-    (void)arg;  /* Unused parameter (MISRA Rule 2.7) */
-    pulse_count++;
-}
+esp_err_t hw827_init(void)
+{
+    esp_err_t ret;
 
-esp_err_t hw827_init(void) {
-    ESP_LOGI(TAG, "Initializing HW827 heart rate sensor...");
-
-    /* Configure GPIO as input with pull-up */
-    gpio_config_t io_conf;
-    io_conf.intr_type = GPIO_INTR_POSEDGE;  /* Trigger on rising edge (pulse detected) */
-    io_conf.mode = GPIO_MODE_INPUT;
-    io_conf.pin_bit_mask = (1ULL << HW827_PULSE_GPIO);
-    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-
-    esp_err_t ret = gpio_config(&io_conf);
+    /* Initialize ADC1 unit (ESP-IDF 5.x oneshot API) */
+    adc_oneshot_unit_init_cfg_t init_config = {
+        .unit_id = ADC_UNIT_1,
+    };
+    ret = adc_oneshot_new_unit(&init_config, &adc1_handle);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "GPIO config failed: %d", ret);
+        ESP_LOGE(TAG, "Failed to initialize ADC unit: %s", esp_err_to_name(ret));
         return ret;
     } else {
-        /* GPIO configured */
+        /* ADC unit initialized */
     }
 
-    /* Install ISR service */
-    ret = gpio_install_isr_service(0);
-    if ((ret != ESP_OK) && (ret != ESP_ERR_INVALID_STATE)) {
-        /* ESP_ERR_INVALID_STATE means already installed */
-        ESP_LOGE(TAG, "ISR service install failed: %d", ret);
-        return ret;
-    } else {
-        /* ISR service ready */
-    }
-
-    /* Attach ISR handler */
-    ret = gpio_isr_handler_add(HW827_PULSE_GPIO, hw827_pulse_isr_handler, NULL);
+    /* Configure ADC channel (12-bit resolution, 0-3.3V range) */
+    adc_oneshot_chan_cfg_t config = {
+        .bitwidth = ADC_BITWIDTH_12,
+        .atten = ADC_ATTEN_DB_11,  /* DB_11 = 0-3.3V (0-2450mV range) */
+    };
+    ret = adc_oneshot_config_channel(adc1_handle, HW827_ADC_CHANNEL, &config);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "ISR handler add failed: %d", ret);
+        ESP_LOGE(TAG, "Failed to configure ADC channel: %s", esp_err_to_name(ret));
         return ret;
     } else {
-        ESP_LOGI(TAG, "HW827 initialized successfully");
+        /* Channel configured */
     }
 
-    last_bpm_calc_time = (uint32_t)xTaskGetTickCount();
+    /* Initialize ADC calibration for accurate voltage conversion (ESP-IDF 5.1 line fitting API) */
+    adc_cali_line_fitting_config_t cali_config = {
+        .unit_id = ADC_UNIT_1,
+        .atten = ADC_ATTEN_DB_11,
+        .bitwidth = ADC_BITWIDTH_12,
+    };
+    ret = adc_cali_create_scheme_line_fitting(&cali_config, &adc1_cali_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "Calibration scheme unavailable: %s (using raw values)", esp_err_to_name(ret));
+        /* Calibration is optional - continue without it */
+    } else {
+        ESP_LOGI(TAG, "ADC calibration initialized");
+    }
+
+    ESP_LOGI(TAG, "HW-827 initialized on GPIO 36 (ADC1_CH0), 12-bit, 0-3.3V");
     return ESP_OK;
 }
 
-esp_err_t hw827_read_bpm(float* heart_rate) {
-    if (heart_rate == NULL) {
+esp_err_t hw827_read(hw827_data_t *data)
+{
+    esp_err_t ret;
+
+    if (data == NULL) {
         return ESP_ERR_INVALID_ARG;
     } else {
         /* Valid pointer */
     }
 
-    uint32_t current_time = (uint32_t)xTaskGetTickCount();
-    uint32_t elapsed_ms = (current_time - last_bpm_calc_time) * portTICK_PERIOD_MS;
-
-    /* Calculate BPM every second */
-    if (elapsed_ms >= 1000U) {
-        if (pulse_count > 0U) {
-            /* Calculate BPM: (pulses / seconds) * 60 */
-            float seconds = (float)elapsed_ms / 1000.0f;
-            float bpm = ((float)pulse_count / seconds) * 60.0f;
-
-            /* Clamp to reasonable range */
-            if (bpm > MAX_HEART_RATE_BPM) {
-                last_bpm = MAX_HEART_RATE_BPM;
-            } else if (bpm < MIN_HEART_RATE_BPM) {
-                last_bpm = MIN_HEART_RATE_BPM;
-            } else {
-                last_bpm = bpm;
-            }
-
-            ESP_LOGD(TAG, "Pulses: %lu, BPM: %.1f", (unsigned long)pulse_count, last_bpm);
-        } else {
-            /* No pulses detected - sensor might not be in contact */
-            ESP_LOGD(TAG, "No pulses detected");
-        }
-
-        /* Reset counters */
-        pulse_count = 0U;
-        last_bpm_calc_time = current_time;
+    /* Read raw ADC value */
+    int adc_raw;
+    ret = adc_oneshot_read(adc1_handle, HW827_ADC_CHANNEL, &adc_raw);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to read ADC: %s", esp_err_to_name(ret));
+        return ret;
     } else {
-        /* Not enough time elapsed */
+        /* Read successful */
     }
 
-    *heart_rate = last_bpm;
+    data->adc_raw = (uint16_t)adc_raw;
+
+    /* Convert to voltage if calibration is available */
+    if (adc1_cali_handle != NULL) {
+        int voltage_mv;
+        ret = adc_cali_raw_to_voltage(adc1_cali_handle, adc_raw, &voltage_mv);
+        if (ret == ESP_OK) {
+            data->voltage_mv = (float)voltage_mv;
+        } else {
+            /* Fallback to approximate calculation: (raw / 4095) * 3300 mV */
+            data->voltage_mv = ((float)adc_raw / 4095.0f) * 3300.0f;
+        }
+    } else {
+        /* No calibration - use approximate calculation */
+        data->voltage_mv = ((float)adc_raw / 4095.0f) * 3300.0f;
+    }
+
     return ESP_OK;
+}
+
+uint8_t hw827_detect_peak(const hw827_data_t *current, const hw827_data_t *previous)
+{
+    if ((current == NULL) || (previous == NULL)) {
+        return 0U;
+    } else {
+        /* Valid pointers */
+    }
+
+    float voltage_diff = (previous->voltage_mv > current->voltage_mv)
+        ? (previous->voltage_mv - current->voltage_mv)
+        : (current->voltage_mv - previous->voltage_mv);
+
+    /* Significant change (>200mV) suggests a heartbeat */
+    if (voltage_diff > 200.0f) {
+        return 1U;
+    } else {
+        /* No peak */
+    }
+    return 0U;
 }
