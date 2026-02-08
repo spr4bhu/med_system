@@ -2,292 +2,258 @@
 
 ## Overview
 
-A secure IoT medical monitoring system using two ESP32 microcontrollers with ESP-IDF framework for HACKFUSION 2026.
+A secure IoT medical monitoring and access control system using two ESP32 microcontrollers with ESP-IDF framework. Real-time vital monitoring with fall detection, posture recognition, and RFID-based access control.
 
 ### Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                         Cloud Server                         │
-│            (Express.js + MongoDB + Web Dashboard)           │
-└───────────────────────────▲─────────────────────────────────┘
-                            │ HTTPS/TLS
-                            │
-                ┌───────────┴───────────┐
-                │      Node A           │
-                │  (Bio-Gateway)        │
-                │                       │
-                │  - MPU6050 (Accel)    │
-                │  - HW827 (Heart)      │
-                │  - DHT11 (Temp)       │
-                │  - SOS Button         │
-                │  - Fall Detection     │
-                └───────────▲───────────┘
-                            │ ESP-NOW (AES-128)
-                            │
-                ┌───────────┴───────────┐
-                │      Node B           │
-                │  (Sentry/Access)      │
-                │                       │
-                │  - RC522 RFID         │
-                │  - IR Motion Sensor   │
-                │  - Buzzer Alarm       │
-                └───────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│           HiveMQ Cloud MQTT Broker (TLS)                 │
+│              mqtts://*.eu.hivemq.cloud:8883              │
+└────────────────────────▲─────────────────────────────────┘
+                         │ MQTT over TLS
+                         │
+         ┌───────────────┴──────────────┐
+         │                              │
+    ┌────▼──────────────┐      ┌───────▼─────────┐
+    │    Node A         │      │    Node B       │
+    │  (Vital Monitor)  │      │   (Sentry)      │
+    │                   │      │                 │
+    │ - MPU6050 (Fall)  │      │ - RC522 RFID    │
+    │ - DHT11 (Temp)    │      │ - IR Motion     │
+    │ - HW-827 (Heart)  │      │ - Buzzer Alarm  │
+    │ - Button (SOS)    │      │                 │
+    └──────────┬────────┘      └────────┬────────┘
+               │ ESP-NOW P2P           │
+               └───────────────────────┘
+                  (Emergency alerts)
 ```
 
 ## Hardware Requirements
 
-### Node A (Gateway)
-- ESP32 DevKit (with WiFi)
-- MPU6050 6-axis accelerometer/gyroscope (I2C)
-- HW827 heart rate sensor (GPIO pulse detection)
-- DHT11 temperature sensor (1-wire)
-- Emergency button with pull-up resistor
-- Status LED
+### Node A: Vital Monitor (Medical Monitoring)
+- **Microcontroller**: ESP32 DevKit V1
+- **Sensors**:
+  - MPU6050 (I2C: GPIO 21/22) - 6-axis IMU for fall detection + posture
+  - DHT11 (GPIO 5) - Temperature & humidity (1-wire protocol)
+  - HW-827 (GPIO 36, ADC) - Heart rate sensor
+  - Emergency Button (GPIO 4, active LOW) - Manual SOS trigger
 
-### Node B (Sentry)
-- ESP32 DevKit
-- RC522 RFID reader (SPI)
-- IR motion sensor (PIR or IR obstacle)
-- Buzzer (PWM)
-- Status LED
+### Node B: Sentry (Access Control & Security)
+- **Microcontroller**: ESP32 DevKit V1
+- **Sensors**:
+  - RC522 RFID Reader (SPI: GPIO 23/25/19/22) - Access control
+  - IR Motion Sensor (GPIO 13) - Intrusion detection
+  - Buzzer (GPIO 5, NPN driver) - Alarm output
 
-### Common
-- 5V power supplies
+### Common Requirements
+- 3.3V power via AMS1117 regulator
+- USB-C or Li-ion battery (3.7-4.2V)
 - Breadboards and jumper wires
-- Micro USB cables
+- Git and ESP-IDF 5.1+
 
 ## Software Requirements
 
-- ESP-IDF v5.x ([Installation Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/))
-- Node.js v16+ (for cloud server)
-- MongoDB v5+ (local or Atlas)
-- Git
+- **ESP-IDF v5.1+** - [Installation Guide](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/)
+- **Git** - For version control
+- **HiveMQ Cloud Account** - Free tier MQTT broker
 
 ## Quick Start
 
-### 1. Setup ESP-IDF Environment
+### 1. Setup ESP-IDF
 
 ```bash
-# Source ESP-IDF environment (do this in every terminal)
-. $HOME/esp/esp-idf/export.sh
+mkdir -p ~/esp
+cd ~/esp
+git clone --recursive https://github.com/espressif/esp-idf.git
+cd esp-idf
+./install.sh esp32
+source export.sh
 ```
 
-### 2. Configure Secrets
+### 2. Clone Repository
 
 ```bash
-# Copy templates
-cp shared/encryption_keys.h.template shared/encryption_keys.h
+cd ~
+git clone https://github.com/vruga/esp_medmonitor.git
+cd esp_medmonitor
+git checkout shashvatt
+```
+
+### 3. Configure Credentials
+
+```bash
 cp node-a-gateway/main/config.h.template node-a-gateway/main/config.h
 cp node-b-sentry/main/config.h.template node-b-sentry/main/config.h
-cp cloud-server/.env.template cloud-server/.env
 
-# Edit each file with your credentials
-# - WiFi SSID/password
-# - Server URL
-# - AES keys
-# - Twilio credentials
+# Edit with your WiFi and HiveMQ credentials
+nano node-a-gateway/main/config.h
+nano node-b-sentry/main/config.h
 ```
 
-### 3. Get ESP32 MAC Addresses
+### 4. Build and Flash Node A
 
 ```bash
-# Flash Node A
 cd node-a-gateway
-idf.py -p /dev/ttyUSB0 flash monitor
-
-# Look for MAC address in logs: "Base MAC Address: XX:XX:XX:XX:XX:XX"
-# Press Ctrl+] to exit monitor
-
-# Repeat for Node B on different port
-cd ../node-b-sentry
-idf.py -p /dev/ttyUSB1 flash monitor
+idf.py build
+idf.py -p /dev/cu.usbserial-XXXXX flash monitor
 ```
 
-Update `shared/encryption_keys.h` with actual MAC addresses.
-
-### 4. Build and Flash Nodes
+### 5. Build and Flash Node B
 
 ```bash
-# Sync shared protocol
-cd shared
-./sync.sh
-
-# Build Node A
-cd ../node-a-gateway
-idf.py build
-idf.py -p /dev/ttyUSB0 flash monitor
-
-# Build Node B (in new terminal)
 cd ../node-b-sentry
 idf.py build
-idf.py -p /dev/ttyUSB1 flash monitor
+idf.py -p /dev/cu.usbserial-YYYYY flash monitor
 ```
-
-### 5. Start Cloud Server
-
-```bash
-cd cloud-server
-npm install
-npm start
-```
-
-### 6. Access Dashboard
-
-Open browser: `http://localhost:3000`
 
 ## Pin Configuration
 
-### Node A GPIO Pins
-| Component | GPIO | Description |
-|-----------|------|-------------|
-| I2C SDA | 21 | MPU6050 data |
-| I2C SCL | 22 | MPU6050 clock |
-| DHT11 | 4 | Temperature sensor (1-wire) |
-| HW827 Pulse | 14 | Heart rate pulse input |
-| SOS Button | 5 | Emergency button (active low) |
-| Status LED | 2 | Built-in LED |
+### Node A GPIO Mapping
+| Component | GPIO | Protocol | Purpose |
+|-----------|------|----------|---------|
+| MPU6050 SDA | 21 | I2C | Accelerometer/Gyroscope data |
+| MPU6050 SCL | 22 | I2C | Accelerometer/Gyroscope clock |
+| DHT11 Data | 5 | 1-Wire | Temperature & humidity |
+| HW-827 ADC | 36 | ADC1_CH0 | Heart rate sensor |
+| Emergency Button | 4 | GPIO Input | SOS button (active LOW) |
+| UART TX | 1 | UART | Serial output (115200 baud) |
+| UART RX | 3 | UART | Serial input |
 
-### Node B GPIO Pins
-| Component | GPIO | Description |
-|-----------|------|-------------|
-| RFID SS | 5 | RC522 chip select |
-| RFID RST | 27 | RC522 reset |
-| SPI MOSI | 23 | RC522 data in |
-| SPI MISO | 19 | RC522 data out |
-| SPI SCK | 18 | RC522 clock |
-| IR Sensor | 4 | Motion detector |
-| Buzzer | 25 | PWM alarm |
-| Status LED | 2 | Built-in LED |
+### Node B GPIO Mapping
+| Component | GPIO | Protocol | Purpose |
+|-----------|------|----------|---------|
+| RC522 MOSI | 23 | SPI | RFID data in |
+| RC522 MISO | 25 | SPI | RFID data out |
+| RC522 SCLK | 19 | SPI | RFID clock |
+| RC522 CS | 22 | SPI | RFID chip select |
+| IR Sensor | 13 | GPIO Input | Motion detection |
+| Buzzer | 5 | GPIO Output | Alarm (NPN driver) |
+| UART TX | 1 | UART | Serial output |
+| UART RX | 3 | UART | Serial input |
 
 ## Features
 
-### Node A (Bio-Gateway)
-- ✅ Continuous heart rate monitoring (40-200 BPM)
-- ✅ Body temperature tracking (35-42°C)
-- ✅ Fall detection with 3-state algorithm
-- ✅ Emergency SOS button
-- ✅ Posture recognition (lying/sitting/standing)
-- ✅ Receives encrypted data from Node B
-- ✅ Sends aggregated data to cloud via HTTPS
+### Node A: Vital Monitoring
+- ✅ **Fall Detection**: Jerk-based algorithm (200 g/s threshold) with 2s cooldown
+- ✅ **Posture Recognition**: Complementary filter (99% gyro + 1% accel)
+  - STANDING: pitch ≤ 15°
+  - SITTING: pitch ≥ 20°
+  - LYING: pitch & roll ≤ 10°
+- ✅ **Heart Rate Monitoring**: Peak detection on HW-827 sensor
+- ✅ **Temperature Tracking**: DHT11 with retry logic (WiFi interference tolerance)
+- ✅ **Emergency Button**: Manual SOS trigger
+- ✅ **MQTT Publishing**: Real-time sensor data to HiveMQ Cloud
+- ✅ **ESP-NOW**: Emergency messages to Node B (dynamic channel)
 
-### Node B (Sentry)
-- ✅ RFID access control with whitelist
-- ✅ IR motion detection with cooldown
-- ✅ Buzzer alarm on intrusion/unauthorized access
-- ✅ Sends encrypted events to Node A via ESP-NOW
+### Node B: Access Control & Security
+- ✅ **RFID Access Control**: RC522 reader with full SPI protocol
+  - Request → Anticollision → UID database lookup
+  - Authorized/Unauthorized card detection
+- ✅ **IR Motion Detection**: PIR sensor with state machine
+- ✅ **Security State Machine**: IDLE → IR_DETECTED → AUTHORIZED/INTRUSION
+- ✅ **Buzzer Alarm**: GPIO-driven NPN transistor
+- ✅ **MQTT Publishing**: Security events to HiveMQ Cloud
+- ✅ **ESP-NOW Receiver**: Listens for emergencies from Node A
 
-### Cloud Server
-- ✅ REST API for data ingestion
-- ✅ MongoDB persistent storage
-- ✅ Real-time WebSocket updates
-- ✅ Twilio SMS alerts on emergencies
-- ✅ Web dashboard with live charts
-
-### Security
-- ✅ AES-128-CBC encryption for ESP-NOW
-- ✅ TLS/HTTPS for cloud communication
-- ✅ API key authentication
-- ✅ Certificate pinning (optional)
+### Network & Communication
+- ✅ **WiFi**: STA mode with auto-reconnect
+- ✅ **MQTT over TLS**: HiveMQ Cloud with certificate verification
+- ✅ **SNTP**: Time synchronization via pool.ntp.org
+- ✅ **ESP-NOW**: Dynamic channel detection (follows WiFi AP channel)
+- ✅ **DHT11 Retry**: Up to 3 retries on checksum errors
 
 ## MISRA-C Compliance
 
-This project follows MISRA-C:2012 guidelines:
-- Rule 8.4: All functions have prototypes
-- Rule 14.4: All if-else chains have final else
-- Rule 17.7: All return values checked
-- Rule 10.3/10.4: Explicit type casts
-- Rule 11.3: Pointer casts via uintptr_t
-- Rule 21.1: No reserved identifiers
-- Compiles with `-Wall -Wextra -Werror` (zero warnings)
+Code follows MISRA-C:2012 guidelines:
+- ✅ Rule 8.4: Function prototypes in headers
+- ✅ Rule 14.4: All if-else chains have final else
+- ✅ Rule 17.7: All return values checked
+- ✅ Rule 10.3/10.4: Explicit type casts
+- ✅ Rule 2.7: Unused parameters marked `(void)param`
+- ✅ Rule 9.1: Variables initialized before use
+- ✅ Compiles with `-Wall -Wextra -Werror`
 
 ## Testing
 
-See [TESTING.md](TESTING.md) for detailed testing checklist.
-
-### Manual Tests
+### Quick Test Setup
 ```bash
-# Monitor both nodes simultaneously
-./tools/monitor-both.sh
+# Terminal 1: Node A
+cd node-a-gateway && idf.py -p /dev/cu.usbserial-A monitor
 
-# Flash individual nodes
-./tools/flash-node-a.sh
-./tools/flash-node-b.sh
+# Terminal 2: Node B
+cd node-b-sentry && idf.py -p /dev/cu.usbserial-B monitor
 ```
 
-### Integration Tests
-1. Trigger fall detection: Drop Node A from 50cm height
-2. Press SOS button: Should see alert on dashboard + SMS
-3. Scan RFID: Authorized card should log access, unauthorized should buzz
-4. Trigger IR sensor: Should see intrusion alert
-5. Monitor vitals: Out-of-range values should trigger alerts
+### Test Cases
+1. **Fall Detection**: Shake/drop Node A → Watch for "FALL DETECTED"
+2. **Posture**: Rotate Node A → Verify posture changes (STANDING/SITTING/LYING)
+3. **Heart Rate**: Simulate sensor pulses → Peak count increases
+4. **RFID Authorized**: Scan authorized card → Buzzer silent
+5. **RFID Unauthorized**: Scan unknown card → Buzzer sounds
+6. **Emergency**: Press button on Node A → Node B buzzer sounds
+7. **MQTT**: Check HiveMQ console for all messages
 
 ## Troubleshooting
 
 ### ESP32 won't flash
-- Check USB cable (must be data cable, not charge-only)
-- Hold BOOT button while connecting
-- Verify port: `ls /dev/tty*`
+```bash
+ls /dev/cu.usbserial-*
+# Hold BOOT button while connecting
+```
 
-### I2C sensor not detected
-- Check wiring (SDA/SCL not swapped)
-- Verify pull-up resistors (often built-in)
-- Scan I2C bus: Use i2c-tools or ESP-IDF examples
+### DHT11 timeouts
+- External 2.2kΩ pull-up required on GPIO 5
+- Keep wire short (<10cm)
+- Check 3.3V power
 
 ### ESP-NOW not working
-- Ensure both nodes use same WiFi channel
-- Verify MAC addresses in `encryption_keys.h`
-- Check distance (max ~100m line-of-sight)
+- Both nodes must be on same WiFi channel
+- Verify MAC addresses match actual hardware
+- Both must be powered on WiFi
 
-### Cloud connection fails
-- Verify WiFi credentials in `config.h`
-- Check server URL and API key
-- Test with `curl`: `curl -H "X-API-Key: your-key" http://server/api/dashboard/latest`
+### MQTT connection fails
+- Check WiFi SSID/password in config.h
+- Verify HiveMQ credentials
+- Ensure TLS certificate is correct
 
-### Dashboard not updating
-- Check MongoDB connection
-- Verify WebSocket connection in browser console
-- Ensure Node A can reach server (ping test)
+### RFID not detected
+- Check SPI wiring (MOSI/MISO/SCLK)
+- Verify RC522 at 3.3V (not 5V)
+- Try increasing SPI clock if needed
 
-## Development
+## Build Options
 
-### Build Options
 ```bash
-# Clean build
 idf.py fullclean && idf.py build
-
-# Build with verbose output
-idf.py -v build
-
-# Parallel build (faster)
-idf.py build -j8
-
-# Configure project
-idf.py menuconfig
+idf.py -v build                    # Verbose output
+idf.py build -j8                   # Parallel build
+idf.py menuconfig                  # Configuration
+idf.py monitor --timestamp         # Monitor with timestamps
 ```
 
-### Debugging
-```bash
-# Enable verbose logs
-idf.py menuconfig → Component config → Log output → Verbose
+## Project Structure
 
-# Monitor with filters
-idf.py monitor --print-filter="*:I NODE_A:V"
-
-# View stack usage
-# Add to task code: ESP_LOGI(TAG, "Stack: %d", uxTaskGetStackHighWaterMark(NULL));
 ```
-
-## License
-
-MIT License - HACKFUSION 2026 Project
-
-## Contributors
-
-- Shashvat Prabhu (Team Lead)
-
-## Acknowledgments
-
-- ESP-IDF Framework by Espressif Systems
-- FreeRTOS for real-time multitasking
-- Chart.js for dashboard visualizations
+esp_medmonitor/
+├── node-a-gateway/          # Vital Monitor firmware
+│   ├── main/
+│   │   ├── config.h.template
+│   │   ├── sensors/         # MPU6050, DHT11, HW-827
+│   │   ├── tasks/           # Fall detection, sensor, MQTT
+│   │   └── utils/
+│   └── CMakeLists.txt
+├── node-b-sentry/           # Access Control firmware
+│   ├── main/
+│   │   ├── config.h.template
+│   │   ├── modules/         # RFID, IR, Buzzer
+│   │   ├── tasks/           # Security, MQTT
+│   │   └── utils/
+│   └── CMakeLists.txt
+├── Hackthon_PCB/            # KiCAD schematics & layouts
+│   ├── Hackthon_PCB.kicad_sch
+│   ├── Hackthon_PCB.kicad_pcb
+│   ├── gerbers/
+│   └── kicad_parts/
+└── README.md
+```
