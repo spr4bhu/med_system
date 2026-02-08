@@ -1,0 +1,25 @@
+{
+  "name": "esp32-medmonitor-server",
+  "version": "1.0.0",
+  "description": "RFID Entry Logger Server for ESP32 Medical Monitor",
+  "main": "rfid_server.js",
+  "scripts": {
+    "start": "node rfid_server.js",
+    "dev": "nodemon rfid_server.js"
+  },
+  "keywords": [
+    "rfid",
+    "esp32",
+    "medical",
+    "iot"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

@@ -1,32 +1,45 @@
-# ESP-IDF build artifacts
+# Build directories
 build/
-sdkconfig
-sdkconfig.old
-*.bin
-*.elf
-*.map
+**/build/
+dist/
 
-# Secrets & Credentials
-**/config.h
-**/encryption_keys.h
-**/hivemq_cert.h
-**/sms_alert.h
-cloud-server/.env
-
-# Cache
+# Cache directories
 .cache/
 **/.cache/
 
-# Node.js
-node_modules/
+# ESP-IDF specific
+sdkconfig.old
+dependencies.lock
+managed_components/
 
-# IDE
+# IDE files
 .vscode/
 .idea/
-
-# macOS
-.DS_Store
+*.swp
+*.swo
+*~
 
 # Python
 __pycache__/
 *.pyc
+*.pyo
+
+# macOS
+.DS_Store
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Runtime data
+rfid_entries.json
+*.log
+server.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Ignore CHANGES.md (auto-generated)
+CHANGES.md
