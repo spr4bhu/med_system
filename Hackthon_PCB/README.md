@@ -24,21 +24,44 @@ KiCAD project for dual-node ESP32 medical monitoring and security system.
 
 ## Design Notes
 
-### Node A (Gateway)
-- MPU6050 (I2C: GPIO 21/22)
-- DHT11 (1-wire: GPIO 5)
-- HW-827 (ADC: GPIO 36)
-- Emergency Button (GPIO 4)
+### Node A: Vital Detector (Medical Monitoring)
 
-### Node B (Sentry)
-- RC522 RFID (SPI: GPIO 23/25/19/22)
-- IR Motion Sensor (GPIO 13)
-- Buzzer (GPIO 5, NPN driver)
+**Sensors:**
+- MPU6050 (I2C: GPIO 21/22) - Fall detection + posture
+- DHT11 (1-wire: GPIO 5) - Temperature & humidity
+- HW-827 (ADC: GPIO 36) - Heart rate
+- Emergency Button (GPIO 4) - Manual SOS trigger
 
-### Power
-- 3.3V regulated via AMS1117
-- USB-C or Li-ion battery input
-- Bulk + decoupling capacitors
+**Schematic:**
+![Vital Detector Schematic](vital%20detector%20schematic.jpeg)
+
+**PCB Layout:**
+![Vital Detector PCB](vital%20detector%20pcb.jpeg)
+
+---
+
+### Node B: Authenticator (Security Monitoring)
+
+**Sensors:**
+- RC522 RFID (SPI: GPIO 23/25/19/22) - Access control
+- IR Motion Sensor (GPIO 13) - Intrusion detection
+- Buzzer (GPIO 5, NPN driver) - Alarm output
+
+**Schematic:**
+![Authenticator Schematic](authenticator%20schematic.jpeg)
+
+**PCB Layout:**
+![Authenticator PCB](authenticator%20pcb.jpeg)
+
+---
+
+### Power Supply
+
+- **Regulator:** AMS1117-3.3 (500mA)
+- **Input:** USB-C 5V or Li-ion battery (3.7-4.2V)
+- **Output:** 3.3V for ESP32 and peripherals
+- **Decoupling:** 10µF bulk + 100nF per IC
+- **Protection:** Reverse polarity diode, USB overvoltage
 
 ## Usage
 
