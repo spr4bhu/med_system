@@ -1,25 +1,24 @@
-/* COPY TO config.h AND FILL VALUES */
-/* DO NOT COMMIT config.h */
+/* Configuration file - Replace placeholder values with your credentials */
 
 #ifndef CONFIG_H
 #define CONFIG_H
 
 #include "driver/i2c.h"
-#include "driver/adc.h"
+#include "esp_adc/adc_oneshot.h"
 
 /* ========== WiFi Credentials ========== */
-#define WIFI_SSID     "YOUR_SSID"
-#define WIFI_PASS     "YOUR_PASSWORD"
+#define WIFI_SSID     "YOUR_WIFI_SSID"
+#define WIFI_PASS     "YOUR_WIFI_PASSWORD"
 
 /* ========== MQTT Configuration (HiveMQ Cloud TLS) ========== */
 #define MQTT_BROKER_URI "mqtts://YOUR_BROKER.s1.eu.hivemq.cloud:8883"
-#define MQTT_USERNAME   "YOUR_MQTT_USER"
-#define MQTT_PASSWORD   "YOUR_MQTT_PASS"
+#define MQTT_USERNAME   "YOUR_MQTT_USERNAME"
+#define MQTT_PASSWORD   "YOUR_MQTT_PASSWORD"
 #define USE_HIVEMQ_CLOUD 1  /* Set to 0 for local MQTT */
 
 /* ========== SMS / IFTTT Alert Configuration ========== */
 #define USE_TWILIO 0
-#define USE_IFTTT  1
+#define USE_IFTTT  0
 #define IFTTT_EVENT_NAME "esp32_emergency"
 #define IFTTT_KEY        "YOUR_IFTTT_KEY_HERE"
 
@@ -34,7 +33,8 @@
 
 #define EMERGENCY_BUTTON_PIN 4   /* GPIO4 - external 2.2k pull-up */
 #define DHT11_GPIO_PIN       5   /* GPIO5 - DHT11 1-wire */
-#define HW827_ADC_CHANNEL    ADC1_CHANNEL_0  /* GPIO36 */
+#define HW827_ADC_CHANNEL    ADC_CHANNEL_0  /* GPIO36 */
+#define HW827_ADC_UNIT       ADC_UNIT_1
 
 /* ========== I2C Device Addresses ========== */
 #define MPU6050_I2C_ADDR     0x68U
@@ -81,12 +81,20 @@
 #define VITALS_CHECK_INTERVAL_MS   1000U
 #define MQTT_PUBLISH_INTERVAL_MS   5000U
 
+/* ========== Power Management Configuration ========== */
+#define POWER_MODE_DEFAULT          0      /* 0=NORMAL, 1=LOW_POWER */
+#define ESPNOW_FIXED_CHANNEL        1      /* Channel for low power mode */
+#define LOW_POWER_MODE_ENABLED      1      /* Compile-time feature flag */
+#define WIFI_DISCONNECT_TIMEOUT_MS  30000  /* Auto-switch to low power after 30s */
+
 /* ========== Task Priorities (higher = more important) ========== */
-#define FALL_DETECT_TASK_PRIORITY  6
-#define SENSOR_TASK_PRIORITY       5
-#define VITALS_TASK_PRIORITY       5
-#define GATEWAY_RX_TASK_PRIORITY   5
-#define MQTT_TASK_PRIORITY         3
+/* Optimized for fall detection responsiveness and power efficiency */
+#define FALL_DETECT_TASK_PRIORITY  7   /* UP - Most critical (<100ms response) */
+#define SENSOR_TASK_PRIORITY       6   /* UP - Feeds fall detection */
+#define VITALS_TASK_PRIORITY       4   /* DOWN - Non-critical threshold checks */
+#define GATEWAY_RX_TASK_PRIORITY   3   /* DOWN - Currently placeholder */
+#define MQTT_TASK_PRIORITY         2   /* DOWN - Background I/O */
+#define CLOUD_TX_TASK_PRIORITY     2   /* Alias for backward compatibility */
 
 /* ========== Task Stack Sizes (bytes) ========== */
 #define SENSOR_TASK_STACK_SIZE     4096U
@@ -94,5 +102,6 @@
 #define VITALS_TASK_STACK_SIZE     4096U
 #define GATEWAY_TASK_STACK_SIZE    4096U
 #define MQTT_TASK_STACK_SIZE       8192U  /* Larger for TLS */
+#define CLOUD_TX_TASK_STACK_SIZE   8192U  /* Alias for backward compatibility */
 
 #endif /* CONFIG_H */

@@ -9,8 +9,10 @@ dist/
 
 # ESP-IDF specific
 sdkconfig.old
+**/sdkconfig
 dependencies.lock
 managed_components/
+
 
 # IDE files
 .vscode/
